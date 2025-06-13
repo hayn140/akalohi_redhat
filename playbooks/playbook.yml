@@ -1,0 +1,16 @@
+---
+
+# Collections needed for this playbook
+#  - amazon.aws
+#  - containers.podman
+
+- hosts: localhost
+  vars_files: 
+    - roles/setup_runner/defaults/aws_access_credentials.yml
+  roles:
+    - setup_runner
+    - create_ec2_vmdk
+
+    # - export_ec2_to_vmdk
+    # - create_ec2_instance2
+    # - export_ec2_to_vhd

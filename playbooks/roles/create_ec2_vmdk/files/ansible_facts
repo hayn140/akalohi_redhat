@@ -1,0 +1,295 @@
+ok: [localhost] => {
+    "ec2_vmdk_result.instances[0]": {
+        "ami_launch_index": 0,
+        "architecture": "x86_64",
+        "block_device_mappings": [
+            {
+                "device_name": "/dev/sda1",
+                "ebs": {
+                    "attach_time": "2025-06-13T22:13:09+00:00",
+                    "delete_on_termination": true,
+                    "status": "attached",
+                    "volume_id": "vol-00b52c749b9b3d253"
+                }
+            }
+        ],
+        "boot_mode": "uefi-preferred",
+        "capacity_reservation_specification": {
+            "capacity_reservation_preference": "open"
+        },
+        "client_token": "75f00129c7194e4380b55740cc30094c",
+        "cpu_options": {
+            "core_count": 1,
+            "threads_per_core": 1
+        },
+        "current_instance_boot_mode": "legacy-bios",
+        "ebs_optimized": false,
+        "ena_support": true,
+        "enclave_options": {
+            "enabled": false
+        },
+        "hibernation_options": {
+            "configured": false
+        },
+        "hypervisor": "xen",
+        "image_id": "ami-0a482bdfdf4a33e61",
+        "instance_id": "i-08cdb8a2988747ffe",
+        "instance_type": "t2.micro",
+        "key_name": "akalohi_aws_pem",
+        "launch_time": "2025-06-13T22:13:08+00:00",
+        "maintenance_options": {
+            "auto_recovery": "default",
+            "reboot_migration": "default"
+        },
+        "metadata_options": {
+            "http_endpoint": "enabled",
+            "http_protocol_ipv6": "disabled",
+            "http_put_response_hop_limit": 1,
+            "http_tokens": "optional",
+            "instance_metadata_tags": "disabled",
+            "state": "applied"
+        },
+        "monitoring": {
+            "state": "disabled"
+        },
+        "network_interfaces": [
+            {
+                "attachment": {
+                    "attach_time": "2025-06-13T22:13:08+00:00",
+                    "attachment_id": "eni-attach-0a04cef941b842da4",
+                    "delete_on_termination": true,
+                    "device_index": 0,
+                    "network_card_index": 0,
+                    "status": "attached"
+                },
+                "description": "",
+                "groups": [
+                    {
+                        "group_id": "sg-05d0d1d95e8b85ab6",
+                        "group_name": "my-security-group-1"
+                    }
+                ],
+                "interface_type": "interface",
+                "ipv6_addresses": [],
+                "mac_address": "02:f5:2b:3d:79:11",
+                "network_interface_id": "eni-0a9d2452275064a5e",
+                "operator": {
+                    "managed": false
+                },
+                "owner_id": "202244434120",
+                "private_dns_name": "ip-10-0-15-127.us-east-2.compute.internal",
+                "private_ip_address": "10.0.15.127",
+                "private_ip_addresses": [
+                    {
+                        "primary": true,
+                        "private_dns_name": "ip-10-0-15-127.us-east-2.compute.internal",
+                        "private_ip_address": "10.0.15.127"
+                    }
+                ],
+                "source_dest_check": true,
+                "status": "in-use",
+                "subnet_id": "subnet-0e7421b258ef5d274",
+                "vpc_id": "vpc-0cbda05a8c9bc6944"
+            }
+        ],
+        "network_performance_options": {
+            "bandwidth_weighting": "default"
+        },
+        "operator": {
+            "managed": false
+        },
+        "placement": {
+            "availability_zone": "us-east-2a",
+            "group_name": "",
+            "tenancy": "default"
+        },
+        "platform_details": "Red Hat Enterprise Linux",
+        "private_dns_name": "ip-10-0-15-127.us-east-2.compute.internal",
+        "private_dns_name_options": {
+            "enable_resource_name_dns_a_record": false,
+            "enable_resource_name_dns_aaaa_record": false,
+            "hostname_type": "ip-name"
+        },
+        "private_ip_address": "10.0.15.127",
+        "product_codes": [],
+        "public_dns_name": "",
+        "root_device_name": "/dev/sda1",
+        "root_device_type": "ebs",
+        "security_groups": [
+            {
+                "group_id": "sg-05d0d1d95e8b85ab6",
+                "group_name": "my-security-group-1"
+            }
+        ],
+        "source_dest_check": true,
+        "state": {
+            "code": 16,
+            "name": "running"
+        },
+        "state_transition_reason": "",
+        "subnet_id": "subnet-0e7421b258ef5d274",
+        "tags": {
+            "Name": "akalohi-vmdk-export"
+        },
+        "usage_operation": "RunInstances:0010",
+        "usage_operation_update_time": "2025-06-13T22:13:08+00:00",
+        "virtualization_type": "hvm",
+        "vpc_id": "vpc-0cbda05a8c9bc6944"
+    }
+}
+
+
+
+#######################################
+
+TASK [create_ec2_vmdk : Show instance information] *****************************
+ok: [localhost] => {
+    "instance_state_check.instances[0]": {
+        "ami_launch_index": 0,
+        "architecture": "x86_64",
+        "block_device_mappings": [
+            {
+                "device_name": "/dev/sda1",
+                "ebs": {
+                    "attach_time": "2025-06-13T23:09:44+00:00",
+                    "delete_on_termination": true,
+                    "status": "attached",
+                    "volume_id": "vol-0fd64f1f1625cb0ef"
+                }
+            }
+        ],
+        "boot_mode": "uefi-preferred",
+        "capacity_reservation_specification": {
+            "capacity_reservation_preference": "open"
+        },
+        "client_token": "c4abe1677571439eb0c2fbe8efedddf2",
+        "cpu_options": {
+            "core_count": 1,
+            "threads_per_core": 1
+        },
+        "current_instance_boot_mode": "legacy-bios",
+        "ebs_optimized": false,
+        "ena_support": true,
+        "enclave_options": {
+            "enabled": false
+        },
+        "hibernation_options": {
+            "configured": false
+        },
+        "hypervisor": "xen",
+        "image_id": "ami-0a482bdfdf4a33e61",
+        "instance_id": "i-082d428199d6d0ec7",
+        "instance_type": "t2.micro",
+        "key_name": "akalohi_aws_pem",
+        "launch_time": "2025-06-13T23:09:44+00:00",
+        "maintenance_options": {
+            "auto_recovery": "default",
+            "reboot_migration": "default"
+        },
+        "metadata_options": {
+            "http_endpoint": "enabled",
+            "http_protocol_ipv6": "disabled",
+            "http_put_response_hop_limit": 1,
+            "http_tokens": "optional",
+            "instance_metadata_tags": "disabled",
+            "state": "applied"
+        },
+        "monitoring": {
+            "state": "disabled"
+        },
+        "network_interfaces": [
+            {
+                "association": {
+                    "ip_owner_id": "amazon",
+                    "public_dns_name": "ec2-3-144-113-152.us-east-2.compute.amazonaws.com",
+                    "public_ip": "3.144.113.152"
+                },
+                "attachment": {
+                    "attach_time": "2025-06-13T23:09:44+00:00",
+                    "attachment_id": "eni-attach-030bbda306e3c5f5c",
+                    "delete_on_termination": true,
+                    "device_index": 0,
+                    "network_card_index": 0,
+                    "status": "attached"
+                },
+                "description": "",
+                "groups": [
+                    {
+                        "group_id": "sg-05d0d1d95e8b85ab6",
+                        "group_name": "my-security-group-1"
+                    }
+                ],
+                "interface_type": "interface",
+                "ipv6_addresses": [],
+                "mac_address": "02:dc:60:5f:40:d1",
+                "network_interface_id": "eni-0d2b9318d25d8d179",
+                "operator": {
+                    "managed": false
+                },
+                "owner_id": "202244434120",
+                "private_dns_name": "ip-10-0-0-114.us-east-2.compute.internal",
+                "private_ip_address": "10.0.0.114",
+                "private_ip_addresses": [
+                    {
+                        "association": {
+                            "ip_owner_id": "amazon",
+                            "public_dns_name": "ec2-3-144-113-152.us-east-2.compute.amazonaws.com",
+                            "public_ip": "3.144.113.152"
+                        },
+                        "primary": true,
+                        "private_dns_name": "ip-10-0-0-114.us-east-2.compute.internal",
+                        "private_ip_address": "10.0.0.114"
+                    }
+                ],
+                "source_dest_check": true,
+                "status": "in-use",
+                "subnet_id": "subnet-0e7421b258ef5d274",
+                "vpc_id": "vpc-0cbda05a8c9bc6944"
+            }
+        ],
+        "network_performance_options": {
+            "bandwidth_weighting": "default"
+        },
+        "operator": {
+            "managed": false
+        },
+        "placement": {
+            "availability_zone": "us-east-2a",
+            "group_name": "",
+            "tenancy": "default"
+        },
+        "platform_details": "Red Hat Enterprise Linux",
+        "private_dns_name": "ip-10-0-0-114.us-east-2.compute.internal",
+        "private_dns_name_options": {
+            "enable_resource_name_dns_a_record": false,
+            "enable_resource_name_dns_aaaa_record": false,
+            "hostname_type": "ip-name"
+        },
+        "private_ip_address": "10.0.0.114",
+        "product_codes": [],
+        "public_dns_name": "ec2-3-144-113-152.us-east-2.compute.amazonaws.com",
+        "public_ip_address": "3.144.113.152",
+        "root_device_name": "/dev/sda1",
+        "root_device_type": "ebs",
+        "security_groups": [
+            {
+                "group_id": "sg-05d0d1d95e8b85ab6",
+                "group_name": "my-security-group-1"
+            }
+        ],
+        "source_dest_check": true,
+        "state": {
+            "code": 16,
+            "name": "running"
+        },
+        "state_transition_reason": "",
+        "subnet_id": "subnet-0e7421b258ef5d274",
+        "tags": {
+            "Name": "akalohi-vmdk-export"
+        },
+        "usage_operation": "RunInstances:0010",
+        "usage_operation_update_time": "2025-06-13T23:09:44+00:00",
+        "virtualization_type": "hvm",
+        "vpc_id": "vpc-0cbda05a8c9bc6944"
+    }
+}
