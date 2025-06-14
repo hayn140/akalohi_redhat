@@ -20,13 +20,13 @@
 
 - name: Create AWS credentials directory
   ansible.builtin.file:
-    path: /root/.aws
+    path: /ec2-user/.aws
     state: directory
     mode: '0700'
 
 - name: Configure AWS credentials
   ansible.builtin.copy:
-    dest: /root/.aws/credentials
+    dest: /ec2-user/.aws/credentials
     content: |
       [default]
       aws_access_key_id = {{ aws_access_key }}
@@ -35,7 +35,7 @@
 
 - name: Configure AWS region
   ansible.builtin.copy:
-    dest: /root/.aws/config
+    dest: /ec2-user/.aws/config
     content: |
       [default]
       region = {{ aws_region }}
