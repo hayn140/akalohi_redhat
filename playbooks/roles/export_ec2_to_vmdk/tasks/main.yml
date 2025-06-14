@@ -1,0 +1,36 @@
+---
+# tasks file for export_ec2_to_vmdk
+
+- name: Export EC2 instance to VMDK
+  ansible.builtin.command: |
+    aws ec2 create-instance-export-task \
+    --instance-id {{ ec2_instance_id }} \
+    --target-environment {{ target_environment }} \
+    --export-to-s3-task DiskImageFormat={{ disk_image_format }},S3Bucket={{ s3_bucket_name }},S3Prefix={{ s3_bucket_path }}/ \
+    --region {{ aws_region }} \
+    --query ExportTask.ExportToS3Task.S3Key \
+    --output text
+  register: export_filename
+
+- name: debug export_filename variable
+  debug:
+    var: export_filename.stdout
+
+- name: Set exported filename as fact
+  ansible.builtin.set_fact:
+    vmdk_full_pathname: "{{ export_filename.stdout }}"
+
+- name: Wait, Check every 30 seconds for 60 minutes until vmdk appears in S3 bucket
+  amazon.aws.s3_object_info:
+    aws_region: "{{ aws_region }}"
+    bucket_name: "{{ s3_bucket_name }}"
+    object_name: "{{ vmdk_full_pathname }}"
+  register: s3_check
+  retries: 120
+  delay: 30
+  until: s3_check.object_info[0].object_data is defined
+  ignore_errors: false
+
+- name: debug
+  debug:
+    var: s3_check.object_info[0].object_data
