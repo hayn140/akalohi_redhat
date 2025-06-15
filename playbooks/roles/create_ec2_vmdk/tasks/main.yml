@@ -24,7 +24,12 @@
     --region {{ aws_region }}
   changed_when: false
 
-- name: Store Instance ID
-  ansible.builtin.set_fact:
-    ec2_instance_id: "{{ ec2_result.instances[0].instance_id }}"
+# - name: Store Instance ID
+#   ansible.builtin.set_fact:
+#     ec2_instance_id: "{{ ec2_result.instances[0].instance_id }}"
 
+- name: Add new EC2 IP to inventory group 'vmdk_instances'
+  ansible.builtin.add_host:
+    name: "{{ ec2_result.instances[0].public_ip_address }}"
+    groups: vmdk_instances
+    ec2_instance_id: "{{ ec2_result.instances[0].instance_id }}"

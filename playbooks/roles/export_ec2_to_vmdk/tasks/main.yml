@@ -1,6 +1,23 @@
 ---
 # tasks file for export_ec2_to_vmdk
 
+- name: Install pip
+  ansible.builtin.package:
+    name: python3-pip
+    state: latest
+
+- name: Install boto3 and botocore (AWS SDK)
+  ansible.builtin.pip:
+    name:
+     - boto3
+     - botocore
+    executable: pip3
+
+- name: Install awscli
+  ansible.builtin.pip:
+    name: awscli
+    executable: pip3
+
 - name: Export EC2 instance to VMDK
   ansible.builtin.command: |
     aws ec2 create-instance-export-task \
@@ -10,10 +27,11 @@
     --region {{ aws_region }} \
     --query ExportTask.ExportToS3Task.S3Key \
     --output text
+  become: false
   register: export_filename
 
-- name: debug export_filename variable
-  debug:
+- name: Display exported image filename
+  ansible.builtin.debug:
     var: export_filename.stdout
 
 - name: Set exported filename as fact
@@ -25,12 +43,27 @@
     aws_region: "{{ aws_region }}"
     bucket_name: "{{ s3_bucket_name }}"
     object_name: "{{ vmdk_full_pathname }}"
+    access_key: "{{ aws_access_key }}"
+    secret_key: "{{ aws_secret_key }}"
   register: s3_check
   retries: 120
   delay: 30
   until: s3_check.object_info[0].object_data is defined
   ignore_errors: false
+  become: false
+  delegate_to: localhost
 
 - name: debug
   debug:
     var: s3_check.object_info[0].object_data
+
+- name: Terminate EC2 Instance
+  amazon.aws.ec2_instance:
+    instance_ids:
+      - "{{ ec2_instance_id }}"
+    region: "{{ aws_region }}"
+    state: terminated
+    access_key: "{{ aws_access_key }}"
+    secret_key: "{{ aws_secret_key }}"
+    wait: true
+  delegate_to: localhost
