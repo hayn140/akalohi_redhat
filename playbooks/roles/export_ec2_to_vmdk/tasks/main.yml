@@ -53,10 +53,6 @@
   become: false
   delegate_to: localhost
 
-- name: debug
-  debug:
-    var: s3_check.object_info[0].object_data
-
 - name: Terminate EC2 Instance
   amazon.aws.ec2_instance:
     instance_ids:
