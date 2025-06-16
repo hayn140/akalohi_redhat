@@ -1,57 +1,52 @@
 ---
 # tasks file for export_ec2_to_vmdk
 
-- name: Install pip
+- name: Install python and awscli
   ansible.builtin.package:
-    name: python3-pip
+    name:
+      - python3-pip
+      - awscli
     state: latest
 
 - name: Install boto3 and botocore (AWS SDK)
   ansible.builtin.pip:
     name:
-     - boto3
-     - botocore
+      - boto3
+      - botocore
     executable: pip3
 
-- name: Install awscli
-  ansible.builtin.pip:
-    name: awscli
-    executable: pip3
-
-- name: Export EC2 instance to VMDK
-  ansible.builtin.command: |
-    aws ec2 create-instance-export-task \
-    --instance-id {{ ec2_instance_id }} \
-    --target-environment {{ target_environment }} \
-    --export-to-s3-task DiskImageFormat={{ disk_image_format }},S3Bucket={{ s3_bucket_name }},S3Prefix={{ s3_bucket_path }}/ \
-    --region {{ aws_region }} \
-    --query ExportTask.ExportToS3Task.S3Key \
-    --output text
+- name: Export AMI to VMDK
+  ec2_export_image:
+    ami_id: "{{ ec2_image }}"
+    disk_image_format: "{{ disk_image_format }}"
+    s3_bucket: "{{ s3_bucket_name }}" 
+    s3_prefix: "{{ s3_bucket_path }}"
+    role_name: "{{ iam_role_name }}"
+    region: "{{ aws_region }}"
   become: false
   register: export_filename
 
 - name: Display exported image filename
   ansible.builtin.debug:
-    var: export_filename.stdout
+    var: export_filename.export_task_id
 
 - name: Set exported filename as fact
   ansible.builtin.set_fact:
-    vmdk_full_pathname: "{{ export_filename.stdout }}"
+    vmdk_full_pathname: "{{ s3_bucket_path }}{{ export_filename.export_task_id }}.vmdk"
 
-- name: Wait, Check every 30 seconds for 60 minutes until vmdk appears in S3 bucket
-  amazon.aws.s3_object_info:
-    aws_region: "{{ aws_region }}"
-    bucket_name: "{{ s3_bucket_name }}"
-    object_name: "{{ vmdk_full_pathname }}"
-    access_key: "{{ aws_access_key }}"
-    secret_key: "{{ aws_secret_key }}"
-  register: s3_check
-  retries: 120
-  delay: 30
-  until: s3_check.object_info[0].object_data is defined
-  ignore_errors: false
-  become: false
-  delegate_to: localhost
+#- name: Wait, Check every 30 seconds for 60 minutes until vmdk appears in S3 bucket
+#  amazon.aws.s3_object_info:
+#    aws_region: "{{ aws_region }}"
+#    bucket_name: "{{ s3_bucket_name }}"
+#    object_name: "{{ vmdk_full_pathname }}"
+#    access_key: "{{ aws_access_key }}"
+#    secret_key: "{{ aws_secret_key }}"
+#  register: s3_check
+#  retries: 120
+#  delay: 30
+#  until: s3_check.object_info[0].object_data is defined
+#  ignore_errors: false
+#  delegate_to: localhost
 
 - name: Terminate EC2 Instance
   amazon.aws.ec2_instance:

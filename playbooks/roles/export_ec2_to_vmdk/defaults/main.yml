@@ -5,4 +5,6 @@ aws_region: us-east-2
 target_environment: vmware
 disk_image_format: vmdk
 s3_bucket_name: akalohi-aws-bucket-1 
-s3_bucket_path: "Exports/vmdk"
+s3_bucket_path: "Exports/vmdk/"
+ec2_image: ami-094f80e6739d21a63
+iam_role_name: vmimport
