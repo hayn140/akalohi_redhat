@@ -1,5 +1,5 @@
 ---
-# defaults file for create_ec2_vmdk
+# defaults file for create_ec2_vhd
 # these need to be made into surveys
 aws_region: us-east-2
 

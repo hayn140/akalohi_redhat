@@ -1,0 +1,24 @@
+- hosts: test
+  become: false
+  tasks:
+
+    # aws s3api put-bucket-acl \
+    # --bucket akalohi-aws-bucket-1 \
+    # --grant-read 'uri="http://acs.amazonaws.com/groups/global/AllUsers"' \
+    # --grant-write 'uri="http://acs.amazonaws.com/groups/global/AllUsers"'
+
+  
+  - name: Export AMI to VMDK
+    ec2_export_instance:
+      instance_id: i-0872ddb917e73a873
+      disk_image_format: vhd
+      s3_bucket: akalohi-aws-bucket-1
+      s3_prefix: "Exports/vhd/"
+      target_environment: microsoft
+      region: us-east-2
+    become: false
+    register: export_filename
+
+  - name: 
+    debug:
+      var: export_filename
