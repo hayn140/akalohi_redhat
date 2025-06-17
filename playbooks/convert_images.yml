@@ -3,21 +3,21 @@
 # Collections needed for this playbook
 #  - amazon.aws
 
-- name: Setup Runner and Create 1st EC2 Instance for VMDK Export
+- name: Setup Runner and Create 1st EC2 Instance for OVA Export
   hosts: localhost
   remote_user: ec2-user
   roles:
     - setup_runner
-    - create_ec2_vmdk
+    - create_ec2_ova
 
-- name: Run Export VMDK on 1st EC2 Instance
-  hosts: vmdk_instances
+- name: Run Export OVA on 1st EC2 Instance
+  hosts: ova_instances
   remote_user: ec2-user
   environment:
     AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
     AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
   roles:
-    - export_ec2_to_vmdk
+    - export_ec2_to_ova
 
 - name: Create 2nd EC2 Instance for VHD Export
   hosts: localhost

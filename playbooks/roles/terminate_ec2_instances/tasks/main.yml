@@ -1,16 +1,16 @@
 ---
 # tasks file for terminate_ec2_instances
 
-- name: Terminate vmdk EC2 Instance
+- name: Terminate OVA EC2 Instance
   amazon.aws.ec2_instance:
-    instance_ids: "{{ vmdk_instance_id }}"
+    instance_ids: "{{ ova_instance_id }}"
     region: "{{ aws_region }}"
     state: terminated
     access_key: "{{ aws_access_key }}"
     secret_key: "{{ aws_secret_key }}"
     wait: true
 
-- name: Terminate vhd EC2 Instance
+- name: Terminate VHD EC2 Instance
   amazon.aws.ec2_instance:
     instance_ids: "{{ vhd_instance_id }}"
     region: "{{ aws_region }}"

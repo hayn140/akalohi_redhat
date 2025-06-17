@@ -13,11 +13,6 @@
       - botocore
     executable: pip3
 
-- name: Uninstall yum awscli
-  ansible.builtin.package:
-    name: awscli
-    state: absent
-
 - name: Install pip awscli
   ansible.builtin.pip:
     name: awscli
