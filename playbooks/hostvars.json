@@ -1,0 +1,43 @@
+3.132.231.72 | SUCCESS => {
+    "hostvars": {
+        "3.132.231.72": {
+            "ansible_check_mode": false,
+            "ansible_config_file": "/home/ec2-user/akalohi_redhat/playbooks/ansible.cfg",
+            "ansible_diff_mode": false,
+            "ansible_facts": {},
+            "ansible_forks": 5,
+            "ansible_inventory_sources": [
+                "/home/ec2-user/akalohi_redhat/playbooks/inventory_file"
+            ],
+            "ansible_playbook_python": "/usr/bin/python3.9",
+            "ansible_verbosity": 0,
+            "ansible_version": {
+                "full": "2.15.3",
+                "major": 2,
+                "minor": 15,
+                "revision": 3,
+                "string": "2.15.3"
+            },
+            "ec2_instance_public_ip": "3.132.231.72",
+            "group_names": [
+                "runner"
+            ],
+            "groups": {
+                "all": [
+                    "3.132.231.72"
+                ],
+                "runner": [
+                    "3.132.231.72"
+                ],
+                "ungrouped": []
+            },
+            "inventory_dir": "/home/ec2-user/akalohi_redhat/playbooks",
+            "inventory_file": "/home/ec2-user/akalohi_redhat/playbooks/inventory_file",
+            "inventory_hostname": "3.132.231.72",
+            "inventory_hostname_short": "3.132.231.72",
+            "omit": "__omit_place_holder__823858848122b54b63e1b931365034ac67fc21a3",
+            "playbook_dir": "/home/ec2-user/akalohi_redhat/playbooks",
+            "vmdk_full_pathname": "test"
+        }
+    }
+}

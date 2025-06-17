@@ -11,16 +11,6 @@
     - setup_runner
     - create_ec2_vmdk
 
-#- hosts: localhost
-#  remote_user: ec2-user
-#  tasks:
-#  - name: Wait 5 minutes for Host to be up
-#    ansible.builtin.wait_for_connection:
-#      connect_timeout: 30
-#      timeout: 300
-#      sleep: 10
-#    delegate_to: "{{ groups['vmdk_instances'] }}"
-
 - hosts: vmdk_instances
   remote_user: ec2-user
   vars_files: 
@@ -31,31 +21,23 @@
   roles:
     - export_ec2_to_vmdk
 
-- hosts: localhost
-  remote_user: ec2-user
-  vars_files:
-    - roles/setup_runner/defaults/aws_access_credentials.yml
-  roles:
-    - create_ec2_vhd
+#- hosts: localhost
+#  remote_user: ec2-user
+#  vars_files:
+#    - roles/setup_runner/defaults/aws_access_credentials.yml
+#  roles:
+#    - create_ec2_vhd
 
-- hosts: vhd_instances
-  remote_user: ec2-user
-  vars_files: 
-    - roles/setup_runner/defaults/aws_access_credentials.yml
-  environment:
-    AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
-    AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
-  roles:
-    - export_ec2_to_vhd
+#- hosts: vhd_instances
+#  remote_user: ec2-user
+#  vars_files: 
+#    - roles/setup_runner/defaults/aws_access_credentials.yml
+#  environment:
+#    AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
+#    AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
+#  roles:
+#    - export_ec2_to_vhd
 
 - hosts: localhost
-  tasks:
-  - name: Show all variables for vmdk_instances
-    ansible.builtin.debug:
-      msg: "{{ item }} vars: {{ hostvars[item] }}"
-    loop: "{{ groups['vmdk_instances'] }}"
-  
-  - name: Show all variables for vhd_instances
-    ansible.builtin.debug:
-      msg: "{{ item }} vars: {{ hostvars[item] }}"
-    loop: "{{ groups['vhd_instances'] }}"
+  roles:
+  - verify_s3_terminate_ec2

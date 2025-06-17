@@ -38,8 +38,14 @@
   ansible.builtin.debug:
     msg: "VMDK Filename: {{ export_filename.export_task_id }}.vmdk"
 
-- name: Set exported filename as fact
-  ansible.builtin.set_fact:
+#- name: Set exported filename as fact
+#  ansible.builtin.set_fact:
+#    vmdk_full_pathname: "{{ s3_bucket_path }}{{ export_filename.export_task_id }}.vmdk"
+
+- name: Add vmdk_full_pathname variable to inventory to verify later
+  ansible.builtin.add_host:
+    name: "{{ vmdk_instance_public_ip }}"
+    groups: vmdk_instances
     vmdk_full_pathname: "{{ s3_bucket_path }}{{ export_filename.export_task_id }}.vmdk"
 
 # - name: Wait, Check every 30 seconds for 60 minutes until vmdk appears in S3 bucket

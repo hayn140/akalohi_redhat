@@ -29,3 +29,4 @@
     name: "{{ ec2_result.instances[0].public_ip_address }}"
     groups: vmdk_instances
     ec2_instance_id: "{{ ec2_result.instances[0].instance_id }}"
+    vmdk_instance_public_ip: "{{ ec2_result.instances[0].public_ip_address }}"

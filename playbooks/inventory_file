@@ -1,5 +1,2 @@
 [runner]
-3.132.231.72
-
-[test]
-3.133.126.106
+3.132.231.72 vmdk_full_pathname=test ec2_instance_id="i-123867dfkjh5"
