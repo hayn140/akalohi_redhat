@@ -24,9 +24,15 @@
     --region {{ aws_region }}
   changed_when: false
 
-- name: Add new EC2 IP to inventory group 'vmdk_instances'
+- name: Add new EC2 IP & ID to inventory group 'vmdk_instances'
   ansible.builtin.add_host:
     name: "{{ ec2_result.instances[0].public_ip_address }}"
     groups: vmdk_instances
     ec2_instance_id: "{{ ec2_result.instances[0].instance_id }}"
+    
+- name: Add vmdk_instance_id and public IP to localhost as variables
+  ansible.builtin.add_host:
+    name: localhost
+    groups: all
+    vmdk_instance_id: "{{ ec2_result.instances[0].instance_id }}"
     vmdk_instance_public_ip: "{{ ec2_result.instances[0].public_ip_address }}"

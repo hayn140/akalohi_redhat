@@ -29,3 +29,10 @@
     name: "{{ ec2_result.instances[1].public_ip_address }}"
     groups: vhd_instances
     ec2_instance_id: "{{ ec2_result.instances[1].instance_id }}"
+
+- name: Add vhd_instance_id and public IP to localhost as variables
+  ansible.builtin.add_host:
+    name: localhost
+    groups: all
+    vhd_instance_id: "{{ ec2_result.instances[1].instance_id }}"
+    vhd_instance_public_ip: "{{ ec2_result.instances[1].public_ip_address }}"

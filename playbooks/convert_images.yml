@@ -3,7 +3,8 @@
 # Collections needed for this playbook
 #  - amazon.aws
 
-- hosts: localhost
+- name: Setup Runner and Create 1st EC2 Instance for VMDK Export
+  hosts: localhost
   remote_user: ec2-user
   vars_files: 
     - roles/setup_runner/defaults/aws_access_credentials.yml
@@ -11,7 +12,8 @@
     - setup_runner
     - create_ec2_vmdk
 
-- hosts: vmdk_instances
+- name: Run Export VMDK on 1st  EC2 Instance
+  hosts: vmdk_instances
   remote_user: ec2-user
   vars_files: 
     - roles/setup_runner/defaults/aws_access_credentials.yml
@@ -21,23 +23,26 @@
   roles:
     - export_ec2_to_vmdk
 
-#- hosts: localhost
-#  remote_user: ec2-user
-#  vars_files:
-#    - roles/setup_runner/defaults/aws_access_credentials.yml
-#  roles:
-#    - create_ec2_vhd
+- name: Create 2nd EC2 Instance for VHD Export
+  hosts: localhost
+  remote_user: ec2-user
+  vars_files:
+    - roles/setup_runner/defaults/aws_access_credentials.yml
+  roles:
+    - create_ec2_vhd
 
-#- hosts: vhd_instances
-#  remote_user: ec2-user
-#  vars_files: 
-#    - roles/setup_runner/defaults/aws_access_credentials.yml
-#  environment:
-#    AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
-#    AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
-#  roles:
-#    - export_ec2_to_vhd
+- name: Run Export VHD on 2nd EC2 Instance
+  hosts: vhd_instances
+  remote_user: ec2-user
+  vars_files: 
+    - roles/setup_runner/defaults/aws_access_credentials.yml
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
+    AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
+  roles:
+    - export_ec2_to_vhd
 
-- hosts: localhost
+- name: Wait for Exports to Complete and terminate EC2 Instances
+  hosts: localhost
   roles:
   - verify_s3_terminate_ec2

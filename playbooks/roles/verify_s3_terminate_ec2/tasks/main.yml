@@ -1,47 +1,46 @@
 ---
 # tasks file for verify_s3_terminate_ec2
 
-- name: debug
-  ansible.builtin.debug:
-    var: vmdk_instance_public_ip
+- name: Wait, Check every 30 seconds for 60 minutes until vmdk appears in S3 bucket
+  amazon.aws.s3_object_info:
+    aws_region: "{{ aws_region }}"
+    bucket_name: "{{ s3_bucket_name }}"
+    object_name: "{{ vmdk_full_pathname }}"
+    access_key: "{{ aws_access_key }}"
+    secret_key: "{{ aws_secret_key }}"
+  register: s3_check
+  retries: 120
+  delay: 30
+  until: s3_check.object_info[0].object_data is defined
+  ignore_errors: false
 
-- name: debug
-  ansible.builtin.debug:
-    var: vmdk_full_pathname
+- name: Wait, Check every 30 seconds for 60 minutes until vhd appears in S3 bucket
+  amazon.aws.s3_object_info:
+    aws_region: "{{ aws_region }}"
+    bucket_name: "{{ s3_bucket_name }}"
+    object_name: "{{ vhd_full_pathname }}"
+    access_key: "{{ aws_access_key }}"
+    secret_key: "{{ aws_secret_key }}"
+  register: s3_check
+  retries: 120
+  delay: 30
+  until: s3_check.object_info[0].object_data is defined
+  ignore_errors: false
 
-- name: debug
-  ansible.builtin.debug:
-    var: ec2_instance_id
+- name: Terminate vmdk EC2 Instance
+  amazon.aws.ec2_instance:
+    instance_ids: "{{ vmdk_instance_id }}"
+    region: "{{ aws_region }}"
+    state: terminated
+    access_key: "{{ aws_access_key }}"
+    secret_key: "{{ aws_secret_key }}"
+    wait: true
 
-- name: debug vmkd full pathname
-  ansible.builtin.debug:
-    var: hostvars[vmdk_instance_public_ip]['vmdk_full_pathname']
-
-- name: debug instance id
-  ansible.builtin.debug:
-    var: hostvars[vmdk_instance_public_ip]['ec2_instance_id']
-
-# - name: Wait, Check every 30 seconds for 60 minutes until vmdk appears in S3 bucket
-#   amazon.aws.s3_object_info:
-#     aws_region: "{{ aws_region }}"
-#     bucket_name: "{{ s3_bucket_name }}"
-#     object_name: "{{ vmdk_full_pathname }}"
-#     access_key: "{{ aws_access_key }}"
-#     secret_key: "{{ aws_secret_key }}"
-#   register: s3_check
-#   retries: 120
-#   delay: 30
-#   until: s3_check.object_info[0].object_data is defined
-#   ignore_errors: false
-#   delegate_to: localhost
-
-# - name: Terminate EC2 Instance
-#   amazon.aws.ec2_instance:
-#     instance_ids:
-#       - "{{ ec2_instance_id }}"
-#     region: "{{ aws_region }}"
-#     state: terminated
-#     access_key: "{{ aws_access_key }}"
-#     secret_key: "{{ aws_secret_key }}"
-#     wait: true
-#   delegate_to: localhost
+- name: Terminate vhd EC2 Instance
+  amazon.aws.ec2_instance:
+    instance_ids: "{{ vhd_instance_id }}"
+    region: "{{ aws_region }}"
+    state: terminated
+    access_key: "{{ aws_access_key }}"
+    secret_key: "{{ aws_secret_key }}"
+    wait: true
