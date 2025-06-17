@@ -1,5 +1,5 @@
 ---
-# tasks file for verify_s3_terminate_ec2
+# tasks file for verify_s3_exports
 
 - name: Wait, Check every 30 seconds for 60 minutes until vmdk appears in S3 bucket
   amazon.aws.s3_object_info:
@@ -26,21 +26,3 @@
   delay: 30
   until: s3_check.object_info[0].object_data is defined
   ignore_errors: false
-
-- name: Terminate vmdk EC2 Instance
-  amazon.aws.ec2_instance:
-    instance_ids: "{{ vmdk_instance_id }}"
-    region: "{{ aws_region }}"
-    state: terminated
-    access_key: "{{ aws_access_key }}"
-    secret_key: "{{ aws_secret_key }}"
-    wait: true
-
-- name: Terminate vhd EC2 Instance
-  amazon.aws.ec2_instance:
-    instance_ids: "{{ vhd_instance_id }}"
-    region: "{{ aws_region }}"
-    state: terminated
-    access_key: "{{ aws_access_key }}"
-    secret_key: "{{ aws_secret_key }}"
-    wait: true
