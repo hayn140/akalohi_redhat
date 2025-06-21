@@ -37,6 +37,10 @@
     groups: ova_instances
     ova_full_pathname: "Exports/ova/{{ ova_export_filename.export_task_id }}.ova"
 
+- name: Set 'exported_image_id' variable
+  ansible.builtin.set_fact:
+    exported_image_id: "{{ ova_export_filename.export_task_id }}"
+
 - name: Display exported OVA image filename
   ansible.builtin.debug:
-    msg: "OVA Filename: {{ ova_export_filename.export_task_id }}.ova"
+    msg: "OVA Filename: {{ exported_image_id }}.ova"

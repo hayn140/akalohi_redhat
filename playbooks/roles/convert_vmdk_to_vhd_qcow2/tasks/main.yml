@@ -1,10 +1,6 @@
 ---
 # tasks file for convert_vmdk_to_vhd_qcow2
 
-- name: Set 'exported_image_id' variable
-  ansible.builtin.set_fact:
-    exported_image_id: "{{ ova_export_filename.export_task_id }}"
-
 - name: set 'path_to_vhd' & 'path_to_qcow2' variable
   ansible.builtin.set_fact:
     path_to_vhd: "/tmp/image_conversion/{{ exported_image_id }}.vhd"
