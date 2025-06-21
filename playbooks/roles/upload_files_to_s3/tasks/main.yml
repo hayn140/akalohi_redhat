@@ -1,0 +1,23 @@
+---
+# tasks file for upload_files_to_s3
+
+- name: PUT VMDK, VHD, & QCOW2 files into S3 Bucket
+  amazon.aws.s3_object:
+    bucket: "{{ s3_bucket_name }}"
+    src: "{{ item.local_source_file }}"
+    object: "{{ item.s3_destination_path }}"
+    mode: put
+    access_key: "{{ aws_access_key }}"
+    secret_key: "{{ aws_secret_key }}"
+  loop:
+    - local_source_file: "{{ path_to_vmdk }}"
+      s3_destination_path: "Exports/vmdk/{{ exported_image_id }}.vmdk"
+    - local_source_file: "{{ path_to_vhd }}"
+      s3_destination_path: "Exports/qcow2/{{ exported_image_id }}.vhd"  
+    - local_source_file: "{{ path_to_qcow2 }}"
+      s3_destination_path: "Exports/qcow2/{{ exported_image_id }}.qcow2"
+  register: s3_upload_results
+
+- name: debug
+  ansible.builtin.debug:
+    var: s3_upload_results

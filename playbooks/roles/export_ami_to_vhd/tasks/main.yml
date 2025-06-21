@@ -1,0 +1,23 @@
+---
+# tasks file for export_ami_to_vhd
+
+- name: Export AMI to VHD
+  ami_export_image:
+    region: "{{ aws_region }}"
+    ami_id: "{{ ami_image_id }}"
+    disk_image_format: vhd
+    s3_bucket: "{{ s3_bucket_name }}" 
+    s3_prefix: "Exports/vhd/"
+    role_name: "{{ iam_role_name }}"
+  become: false
+  register: vhd_export_filename
+
+- name: Add 'vhd_full_pathname' variable to inventory to verify later
+  ansible.builtin.add_host:
+    name: localhost
+    groups: all
+    vhd_full_pathname: "Exports/vhd/{{ vhd_export_filename.export_task_id }}.vhd"
+
+- name: Display exported image filename
+  ansible.builtin.debug:
+    msg: "VHD Filename: {{ vhd_export_filename.export_task_id }}.vhd"
