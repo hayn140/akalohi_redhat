@@ -22,6 +22,7 @@
 
 - name: Wait for OVA Export to complete and appear in S3 Bucket
   hosts: localhost
+  remote_user: ec2-user
   roles:
   - verify_ova_export
 
@@ -44,6 +45,7 @@
 
 - name: Cleanup AMIs, Snapshots, and Instances
   hosts: localhost
+  remote_user: ec2-user
   roles:
   - cleanup_ami_snapshots
   - terminate_ec2_instances

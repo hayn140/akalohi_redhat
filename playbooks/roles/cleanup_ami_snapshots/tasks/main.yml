@@ -1,10 +1,10 @@
 ---
 # tasks file for cleanup_ami_snapshots
 
-- name: Gather information about an AMI with 'AMI Name' equal to "{{ ova_instance_id }}"
+- name: Gather information about an AMI with 'AMI Name' equal to "{{ exported_image_id }}"
   amazon.aws.ec2_ami_info:
     filters:
-      name: "{{ ova_instance_id }}"
+      name: "{{ exported_image_id }}"
   register: associated_ami_info
 
 - name: Display Associated AMI ID
