@@ -15,12 +15,9 @@
 
 - name: All Image Conversions COMPLETE!
   ansible.builtin.debug:
-    msg: |
-
-      OVA: {{ ova_full_pathname }}
-      
-      VMDK: {{ vmdk_full_pathname }}
-
-      VHD: {{ vhd_full_pathname }}
-
-      QCOW2: {{ qcow2_full_pathname }}
+    msg: "{{ item }}"
+  loop:
+    - "OVA: {{ ova_full_pathname }}"
+    - "VMDK: {{ vmdk_full_pathname }}"
+    - "VHD: {{ vhd_full_pathname }}"
+    - "QCOW2: {{ qcow2_full_pathname }}"
