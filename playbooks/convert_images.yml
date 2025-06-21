@@ -34,7 +34,7 @@
 #   roles:
 #     - export_ami_to_vhd
 
-- name: Create VMDK, VHD and QCOW2 Images
+- name: Create VMDK, VHD and QCOW2 Images from OVA
   hosts: ova_instances
   remote_user: ec2-user
   roles:
@@ -42,12 +42,8 @@
     - convert_vmdk_to_vhd_qcow2
     - upload_files_to_s3
 
-# - name: Wait for Exports to Complete and appear in S3 Bucket
-#   hosts: localhost
-#   roles:
-#   - verify_s3_exports
-
-# - name: Terminate EC2 Instances
-#   hosts: localhost
-#   roles:
-#   - terminate_ec2_instances
+- name: Cleanup AMIs, Snapshots, and Instances
+  hosts: localhost
+  roles:
+  - cleanup_ami_snapshots
+  - terminate_ec2_instances

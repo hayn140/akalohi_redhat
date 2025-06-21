@@ -1,7 +1,7 @@
 ---
 # tasks file for terminate_ec2_instances
 
-- name: Terminate OVA EC2 Instance
+- name: Terminate OVA EC2 Instances
   amazon.aws.ec2_instance:
     instance_ids: "{{ item }}"
     region: "{{ aws_region }}"
@@ -13,13 +13,14 @@
     - "{{ ova_instance_id }}"
     - "{{ dummy_ec2_instance_id }}"
 
-# - name: Display exported image filename
-#   ansible.builtin.debug:
-#     msg: |
-#       "OVA: {{ ova_full_pathname }}
+- name: All Image Conversions COMPLETE!
+  ansible.builtin.debug:
+    msg: |
+
+      OVA: {{ ova_full_pathname }}
       
-#       VHD: {{ vhd_full_pathname }}
+      VMDK: {{ vmdk_full_pathname }}
 
-#       VMDK: {{ vmdk_full_pathname }}
+      VHD: {{ vhd_full_pathname }}
 
-#       QCOW2: {{ qcow2_full_pathname }}"
+      QCOW2: {{ qcow2_full_pathname }}

@@ -13,11 +13,15 @@
     - local_source_file: "{{ path_to_vmdk }}"
       s3_destination_path: "Exports/vmdk/{{ exported_image_id }}.vmdk"
     - local_source_file: "{{ path_to_vhd }}"
-      s3_destination_path: "Exports/qcow2/{{ exported_image_id }}.vhd"  
+      s3_destination_path: "Exports/vhd/{{ exported_image_id }}.vhd"  
     - local_source_file: "{{ path_to_qcow2 }}"
       s3_destination_path: "Exports/qcow2/{{ exported_image_id }}.qcow2"
   register: s3_upload_results
 
-- name: debug
-  ansible.builtin.debug:
-    var: s3_upload_results
+- name: Add Final S3 Pathname Variables to 'localhost'
+  ansible.builtin.add_host:
+    name: localhost
+    groups: all
+    vmdk_full_pathname: "{{ s3_upload_results.results[0].invocation.module_args.object }}"
+    vhd_full_pathname: "{{ s3_upload_results.results[1].invocation.module_args.object }}"
+    qcow2_full_pathname: "{{ s3_upload_results.results[2].invocation.module_args.object }}"
