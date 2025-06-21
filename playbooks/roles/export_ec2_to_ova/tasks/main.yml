@@ -25,11 +25,12 @@
   become: false
   register: ova_export_filename
 
-- name: Add 'ova_full_pathname' variable to localhost inventory to verify later
+- name: Add 'ova_full_pathname' & 'exported_image_id' variable to localhost inventory
   ansible.builtin.add_host:
     name: localhost
     groups: all
     ova_full_pathname: "Exports/ova/{{ ova_export_filename.export_task_id }}.ova"
+    exported_image_id: "{{ ova_export_filename.export_task_id }}"
 
 - name: Add 'ova_full_pathname' variable to ova_instance group inventory
   ansible.builtin.add_host:

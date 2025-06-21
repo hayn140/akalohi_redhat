@@ -24,7 +24,7 @@
   hosts: localhost
   remote_user: ec2-user
   roles:
-  - verify_ova_export
+    - verify_ova_export
 
 # - name: Export VHD from AMI
 #   hosts: ova_instances
@@ -47,5 +47,5 @@
   hosts: localhost
   remote_user: ec2-user
   roles:
-  - cleanup_ami_snapshots
-  - terminate_ec2_instances
+    - cleanup_ami_snapshots
+    - terminate_ec2_instances
