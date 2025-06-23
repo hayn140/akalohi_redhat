@@ -1,0 +1,60 @@
+---
+
+hosts: test
+become: true
+tasks:
+
+  - name: Install python & awscli
+    ansible.builtin.package:
+      name: 
+        - python3-pip
+        - awscli
+      state: latest
+
+  - name: Install boto3 and botocore (AWS SDK)
+    ansible.builtin.pip:
+      name:
+        - boto3
+        - botocore
+      executable: pip3
+
+  - name: Set facts
+    ansible.builtin.set_fact:
+      dummy_ec2_instance_id: i-0a2a80294bc1471c4
+      
+  - name: Export EC2 Instance to OVA
+    ec2_export_ova:
+      region: "{{ aws_region }}"
+      instance_id: "{{ dummy_ec2_instance_id }}"
+      target_environment: vmware
+      container_format: ova
+      disk_image_format: vmdk
+      s3_bucket: "{{ s3_bucket_name }}" 
+      s3_prefix: "Exports/ova/"
+    become: false
+    register: ova_export_filename
+
+  - name: debug
+    ansible.builtin.debug:
+      var: ova_export_filename
+
+  # - name: Add 'ova_full_pathname' & 'exported_image_id' variable to localhost inventory
+  #   ansible.builtin.add_host:
+  #     name: "{{ execution_host_ip }}"
+  #     groups: execution_host
+  #     ova_full_pathname: "Exports/ova/{{ ova_export_filename.export_task_id }}.ova"
+  #     exported_image_id: "{{ ova_export_filename.export_task_id }}"
+
+  # - name: Add 'ova_full_pathname' variable to ova_instance group inventory
+  #   ansible.builtin.add_host:
+  #     name: "{{ ova_instance_public_ip }}"
+  #     groups: ova_instances
+  #     ova_full_pathname: "Exports/ova/{{ ova_export_filename.export_task_id }}.ova"
+
+  # - name: Set 'exported_image_id' variable
+  #   ansible.builtin.set_fact:
+  #     exported_image_id: "{{ ova_export_filename.export_task_id }}"
+
+  # - name: Display exported OVA image filename
+  #   ansible.builtin.debug:
+  #     msg: "OVA Filename: {{ exported_image_id }}.ova"
