@@ -14,8 +14,8 @@
 
 - name: Add 'vhd_full_pathname' variable to inventory to verify later
   ansible.builtin.add_host:
-    name: localhost
-    groups: all
+    name: "{{ execution_host_ip }}"
+    groups: execution_host
     vhd_full_pathname: "Exports/vhd/{{ vhd_export_filename.export_task_id }}.vhd"
 
 - name: Display exported image filename
