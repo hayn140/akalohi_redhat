@@ -1,5 +1,7 @@
 ---
 
+execution_host_ip: "3.132.231.72"
+
 ami_image_id: ami-0c7b153139eee1d57 
 
 aws_region: us-east-2
