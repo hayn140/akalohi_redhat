@@ -32,7 +32,7 @@
 
 - name: Add 'ova_instance_id' variable to localhost
   ansible.builtin.add_host:
-    name: localhost
-    groups: all
+    name: "{{ execution_host_ip }}"
+    groups: execution_host
     ova_instance_id: "{{ ec2_ova_result.instances[0].instance_id }}"
     ova_instance_public_ip: "{{ ec2_ova_result.instances[0].public_ip_address }}"
