@@ -4,7 +4,7 @@
 #  - amazon.aws
 
 - name: Setup Runner and Create two EC2 Instances for OVA & VHD Export
-  hosts: localhost
+  hosts: execution_host
   remote_user: ec2-user
   roles:
     - setup_runner
@@ -21,7 +21,7 @@
     - export_ec2_to_ova
 
 - name: Wait for OVA Export to complete and appear in S3 Bucket
-  hosts: localhost
+  hosts: execution_host
   remote_user: ec2-user
   roles:
     - verify_ova_export
@@ -44,7 +44,7 @@
     - upload_files_to_s3
 
 - name: Cleanup AMIs, Snapshots, and Instances
-  hosts: localhost
+  hosts: execution_host
   remote_user: ec2-user
   roles:
     - cleanup_ami_snapshots
