@@ -13,8 +13,8 @@
     region: "{{ aws_region }}"
     state: running
     wait: true
-    network_interfaces:
-      - assign_public_ip: true
+    network:
+      assign_public_ip: true
   register: ec2_ova_result
 
 - name: Wait for instance to pass 2/2 checks using AWS CLI
