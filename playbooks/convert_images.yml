@@ -3,7 +3,7 @@
 # Collections needed for this playbook
 #  - amazon.aws
 
-- name: Setup Runner and Create two EC2 Instances for OVA & VHD Export
+- name: Setup Execution Host and Create two EC2 Instances for OVA & VHD Export
   hosts: execution_host
   remote_user: ec2-user
   roles:
