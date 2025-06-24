@@ -1,5 +1,5 @@
 ---
-# tasks file for setup_runner
+# tasks file for setup_execution_host
 
 - name: Install pip and awscli
   ansible.builtin.package:
