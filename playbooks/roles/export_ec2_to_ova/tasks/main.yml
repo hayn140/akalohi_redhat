@@ -1,9 +1,11 @@
 ---
 # tasks file for export_ec2_to_ova
 
-- name: Install python
+- name: Install python & awscli
   ansible.builtin.package:
-    name: python3-pip
+    name: 
+      - python3-pip
+      - awscli
     state: latest
 
 - name: Install boto3 and botocore (AWS SDK)
@@ -13,17 +15,28 @@
       - botocore
     executable: pip3
 
-- name: Export EC2 Instance to OVA
-  ec2_export_ova:
-    region: "{{ aws_region }}"
-    instance_id: "{{ dummy_ec2_instance_id }}"
-    target_environment: vmware
-    container_format: ova
-    disk_image_format: vmdk
-    s3_bucket: "{{ s3_bucket_name }}" 
-    s3_prefix: "Exports/ova/"
+- name: Export EC2 Instance to OVA (Command Module)
+  ansible.builtin.command:
+    cmd: >
+      aws ec2 create-instance-export-task
+      --region: "{{ aws_region }}"
+      --instance-id: "{{ dummy_ec2_instance_id }}"
+      --target-environment: vmware
+      --export-to-s3-task ContainerFormat=ova,DiskImageFormat=vmdk,S3Bucket="{{ s3_bucket_name }}",S3Prefix="Exports/ova/"
   become: false
   register: ova_export_filename
+
+# - name: Export EC2 Instance to OVA (Custom Ansible Module)
+#   ec2_export_ova:
+#     region: "{{ aws_region }}"
+#     instance_id: "{{ dummy_ec2_instance_id }}"
+#     target_environment: vmware
+#     container_format: ova
+#     disk_image_format: vmdk
+#     s3_bucket: "{{ s3_bucket_name }}" 
+#     s3_prefix: "Exports/ova/"
+#   become: false
+#   register: ova_export_filename
 
 - name: Add 'ova_full_pathname' & 'exported_image_id' variable to localhost inventory
   ansible.builtin.add_host:

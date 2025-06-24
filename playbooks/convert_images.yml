@@ -7,7 +7,7 @@
   hosts: execution_host
   remote_user: ec2-user
   roles:
-    - setup_runner
+    - setup_execution_host
     - create_ec2_ova
     - create_ec2_dummy
 
