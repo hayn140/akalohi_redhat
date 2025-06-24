@@ -35,3 +35,9 @@
       [default]
       region = {{ aws_region }}
     mode: '0600'
+
+- name: Set the 'execution_host_ip' Variable Dynamically
+  ansible.builtin.add_host:
+    name: "{{ groups['execution_host'][0] }}"
+    groups: all
+    execution_host_ip: "{{ groups['execution_host'][0] }}"
