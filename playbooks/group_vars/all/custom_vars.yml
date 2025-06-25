@@ -2,7 +2,7 @@
 
 execution_host_ip: "3.132.231.72"
 
-ami_image_id: ami-0c7b153139eee1d57 
+ami_image_id: ami-09203f8b38074705f
 
 aws_region: us-east-2
 ec2_instance_type: t2.micro
