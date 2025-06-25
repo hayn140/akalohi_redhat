@@ -16,9 +16,15 @@ Your S3 bucket needs to be configured with the correct ACL permissions.
 ### 2. Access Control List (ACL)
 
 - **Add Grantee**
-  - Use the **Canonical ID** for *All other Regions*:
+  - Use the proper **Canonical ID**:
+    
+    *Low-Side (All other Regions Canonical ID):*
     ```
     c4d8eabf8db69dbe46bfe0e517100c554f01200b104d59cd408e777ba442a322
+    ```
+    *High-Side (GovCloud Canonical ID):*
+    ```
+    af913ca13efe7a94b88392711f6cfc8aa07c9d1454d4f190a624b126733a5602
     ```
 - **Permissions for each Grantee**:
   - `READ_ACP`  
