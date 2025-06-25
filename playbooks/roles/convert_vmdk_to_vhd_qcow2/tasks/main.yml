@@ -6,6 +6,11 @@
     path_to_vhd: "/tmp/image_conversion/{{ exported_image_id }}.vhd"
     path_to_qcow2: "/tmp/image_conversion/{{ exported_image_id }}.qcow2"
 
+- name: Install qemu-img package 
+  ansible.builtin.package:
+    name: qemu-img
+    state: installed
+    
 - name: Convert VMDK to VHD and QCOW2 (Command Module)
   ansible.builtin.command:
     cmd: >

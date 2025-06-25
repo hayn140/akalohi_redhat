@@ -26,15 +26,6 @@
   roles:
     - verify_ova_export
 
-# - name: Export VHD from AMI
-#   hosts: ova_instances
-#   remote_user: ec2-user
-#   environment:
-#     AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
-#     AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
-#   roles:
-#     - export_ami_to_vhd
-
 - name: Create VMDK, VHD and QCOW2 Images from OVA
   hosts: ova_instances
   remote_user: ec2-user
