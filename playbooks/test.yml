@@ -8,13 +8,13 @@
     AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
   
   tasks:
-  
+
   - name: Export EC2 Instance to OVA (Command Module)
     ansible.builtin.command:
       cmd: >
         aws ec2 create-instance-export-task
-        --region: "us-east-2"
-        --instance-id: "i-0bdfec2e9c2d223ef"
-        --target-environment: vmware
+        --region "us-east-2"
+        --instance-id "i-0bdfec2e9c2d223ef"
+        --target-environment vmware
         --export-to-s3-task ContainerFormat=ova,DiskImageFormat=vmdk,S3Bucket="akalohi-aws-bucket-1",S3Prefix="Exports/ova/"
     become: false
