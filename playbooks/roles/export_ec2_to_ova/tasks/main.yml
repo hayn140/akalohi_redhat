@@ -19,9 +19,9 @@
   ansible.builtin.command:
     cmd: >
       aws ec2 create-instance-export-task
-      --region: "{{ aws_region }}"
-      --instance-id: "{{ dummy_ec2_instance_id }}"
-      --target-environment: vmware
+      --region "{{ aws_region }}"
+      --instance-id "{{ dummy_ec2_instance_id }}"
+      --target-environment vmware
       --export-to-s3-task ContainerFormat=ova,DiskImageFormat=vmdk,S3Bucket="{{ s3_bucket_name }}",S3Prefix="Exports/ova/"
   become: false
   register: ova_export_filename
