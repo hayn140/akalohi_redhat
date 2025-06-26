@@ -13,8 +13,8 @@
     region: "{{ aws_region }}"
     state: running
     wait: true
-    # network_interfaces: # Public IP not needed, we aren't running any playbooks on this instance.
-    #   - assign_public_ip: true
+    # network: # Public IP not needed, we aren't running any playbooks on this instance.
+    #   assign_public_ip: true
   register: ec2_dummy_result
 
 - name: Wait for instance to pass 2/2 checks using AWS CLI
@@ -27,15 +27,3 @@
 - name: Set 'dummy_ec2_instance_id' variable
   ansible.builtin.set_fact:
     dummy_ec2_instance_id: "{{ ec2_dummy_result.instances[0].instance_id }}"
-
-# - name: Add 'dummy_ec2_instance_id' variable to localhost
-#   ansible.builtin.add_host:
-#     name: "{{ execution_host_ip }}"
-#     groups: execution_host
-#     dummy_ec2_instance_id: "{{ ec2_dummy_result.instances[0].instance_id }}"
-
-# - name: Add 'dummy_ec2_instance_id' variable to ova instance
-#   ansible.builtin.add_host:
-#     name: "{{ ova_instance_public_ip }}"
-#     groups: ova_instances
-#     dummy_ec2_instance_id: "{{ ec2_dummy_result.instances[0].instance_id }}"

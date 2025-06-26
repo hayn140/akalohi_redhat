@@ -23,11 +23,3 @@
     vmdk_full_pathname: "{{ s3_upload_results.results[0].invocation.module_args.object }}"
     vhd_full_pathname: "{{ s3_upload_results.results[1].invocation.module_args.object }}"
     qcow2_full_pathname: "{{ s3_upload_results.results[2].invocation.module_args.object }}"
-
-# - name: Add Final S3 Pathname Variables to 'localhost'
-#   ansible.builtin.add_host:
-#     name: "{{ execution_host_ip }}"
-#     groups: execution_host
-#     vmdk_full_pathname: "{{ s3_upload_results.results[0].invocation.module_args.object }}"
-#     vhd_full_pathname: "{{ s3_upload_results.results[1].invocation.module_args.object }}"
-#     qcow2_full_pathname: "{{ s3_upload_results.results[2].invocation.module_args.object }}"

@@ -3,41 +3,20 @@
 # Collections needed for this playbook
 #  - amazon.aws
 
-- name: Setup Execution Host and Create two EC2 Instances for OVA & VHD Export
-  hosts: execution_host
-  remote_user: ec2-user
-  roles:
-    - setup_execution_host
-  #  - create_ec2_ova
-    - create_ec2_dummy
-
-- name: Export OVA from Dummy Instance
+- name: Convert Instance to OVA, VMDK, QCOW2, & VHD Format
   hosts: execution_host
   remote_user: ec2-user
   environment:
     AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
     AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
   roles:
-    - export_ec2_to_ova
-
-- name: Wait for OVA Export to complete and appear in S3 Bucket
-  hosts: execution_host
-  remote_user: ec2-user
-  roles:
+    - setup_execution_host
+    - create_ec2_dummy
+    - export_ec2_dummy_to_ova
     - verify_ova_export
-
-- name: Create VMDK, VHD and QCOW2 Images from OVA
-  hosts: execution_host
-  remote_user: ec2-user
-  roles:
     - extract_vmdk_from_ova
     - convert_vmdk_to_vhd_qcow2
     - upload_files_to_s3
-
-- name: Cleanup AMIs, Snapshots, Instances, and Execution Host
-  hosts: execution_host
-  remote_user: ec2-user
-  roles:
     - cleanup_ami_snapshots
     - terminate_ec2_instances
     - cleanup_execution_host
