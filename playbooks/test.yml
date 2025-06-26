@@ -1,0 +1,76 @@
+---
+# tasks file for export_ec2_to_ova
+- hosts: test
+  become: true
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
+    AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
+  
+  tasks:
+  - name: Install python & awscli
+    ansible.builtin.package:
+      name: 
+        - python3-pip
+        - awscli
+      state: latest
+
+  - name: Install boto3 and botocore (AWS SDK)
+    ansible.builtin.pip:
+      name:
+        - boto3
+        - botocore
+      executable: pip3
+
+  - name: Export EC2 Instance to OVA (Command Module)
+    ansible.builtin.command:
+      cmd: >
+        aws ec2 create-instance-export-task
+        --region "us-east-2"
+        --instance-id "i-0f3a6313a5570f7d1"
+        --target-environment vmware
+        --export-to-s3-task ContainerFormat=ova,DiskImageFormat=vmdk,S3Bucket="akalohi-aws-bucket-1",S3Prefix="Exports/ova/"
+        --query 'ExportTask.ExportTaskId'
+        --output text
+    become: false
+    register: ova_export_filename
+
+  - name: Debug
+    ansible.builtin.debug:
+      var: ova_export_filename.stdout
+
+  - name: Debug 2
+    ansible.builtin.debug:
+      var: ova_export_filename.export_task_id
+
+# - name: Export EC2 Instance to OVA (Custom Ansible Module)
+#   ec2_export_ova:
+#     region: "{{ aws_region }}"
+#     instance_id: "{{ dummy_ec2_instance_id }}"
+#     target_environment: vmware
+#     container_format: ova
+#     disk_image_format: vmdk
+#     s3_bucket: "{{ s3_bucket_name }}" 
+#     s3_prefix: "Exports/ova/"
+#   become: false
+#   register: ova_export_filename
+
+#- name: Add 'ova_full_pathname' & 'exported_image_id' variable to localhost inventory
+#  ansible.builtin.add_host:
+#    name: "{{ execution_host_ip }}"
+#    groups: execution_host
+#    ova_full_pathname: "Exports/ova/{{ ova_export_filename.export_task_id }}.ova"
+#    exported_image_id: "{{ ova_export_filename.export_task_id }}"
+
+#- name: Add 'ova_full_pathname' variable to ova_instance group inventory
+#  ansible.builtin.add_host:
+#    name: "{{ ova_instance_public_ip }}"
+#    groups: ova_instances
+#    ova_full_pathname: "Exports/ova/{{ ova_export_filename.export_task_id }}.ova"
+
+#- name: Set 'exported_image_id' variable
+#  ansible.builtin.set_fact:
+#    exported_image_id: "{{ ova_export_filename.export_task_id }}"
+
+#- name: Display exported OVA image filename
+#  ansible.builtin.debug:
+#    msg: "OVA Filename: {{ exported_image_id }}.ova"
