@@ -1,0 +1,22 @@
+---
+
+# Collections needed for this playbook
+#  - amazon.aws
+
+- name: Convert Instance to OVA, VMDK, QCOW2, & VHD Format
+  hosts: execution_host
+  remote_user: ec2-user
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
+    AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
+  roles:
+    - setup_execution_host
+    - create_ec2_dummy
+    - export_ec2_dummy_to_ova
+    - verify_ova_export
+    - extract_vmdk_from_ova
+    - convert_vmdk_to_vhd_qcow2
+    - upload_files_to_s3
+    - cleanup_ami_snapshots
+    - terminate_ec2_instances
+    - cleanup_execution_host
