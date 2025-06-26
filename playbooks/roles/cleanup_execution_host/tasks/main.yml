@@ -1,0 +1,16 @@
+---
+# tasks file for cleanup_execution_host
+
+- name: Remove /tmp/image_conversion/ directory and its contents
+  ansible.builtin.file:
+    path: /tmp/image_conversion
+    state: absent
+
+- name: All Image Conversions COMPLETE!
+  ansible.builtin.debug:
+    msg: "{{ item }}"
+  loop:
+    - "OVA: {{ ova_full_pathname }}"
+    - "VMDK: {{ vmdk_full_pathname }}"
+    - "VHD: {{ vhd_full_pathname }}"
+    - "QCOW2: {{ qcow2_full_pathname }}"

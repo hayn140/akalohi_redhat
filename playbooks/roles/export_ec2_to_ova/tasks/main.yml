@@ -1,19 +1,19 @@
 ---
 # tasks file for export_ec2_to_ova
 
-- name: Install python & awscli
-  ansible.builtin.package:
-    name: 
-      - python3-pip
-      - awscli
-    state: latest
+# - name: Install python & awscli
+#   ansible.builtin.package:
+#     name: 
+#       - python3-pip
+#       - awscli
+#     state: latest
 
-- name: Install boto3 and botocore (AWS SDK)
-  ansible.builtin.pip:
-    name:
-      - boto3
-      - botocore
-    executable: pip3
+# - name: Install boto3 and botocore (AWS SDK)
+#   ansible.builtin.pip:
+#     name:
+#       - boto3
+#       - botocore
+#     executable: pip3
 
 - name: Export EC2 Instance to OVA (Command Module Path)
   ansible.builtin.command:
@@ -28,22 +28,23 @@
   become: false
   register: ova_export_filename
 
-- name: Add 'ova_full_pathname' & 'exported_image_id' variable to localhost inventory (Command Module Path)
-  ansible.builtin.add_host:
-    name: "{{ execution_host_ip }}"
-    groups: execution_host
-    ova_full_pathname: "Exports/ova/{{ ova_export_filename.stdout }}.ova"
-    exported_image_id: "{{ ova_export_filename.stdout }}"
-
-- name: Add 'ova_full_pathname' variable to ova_instance group inventory (Command Module Path)
-  ansible.builtin.add_host:
-    name: "{{ ova_instance_public_ip }}"
-    groups: ova_instances
-    ova_full_pathname: "Exports/ova/{{ ova_export_filename.stdout }}.ova"
-
-- name: Set 'exported_image_id' variable (Command Module Path)
+- name: Set 'exported_image_id' and 'ova_full_pathname' variables (Command Module Path)
   ansible.builtin.set_fact:
     exported_image_id: "{{ ova_export_filename.stdout }}"
+    ova_full_pathname: "Exports/ova/{{ ova_export_filename.stdout }}.ova"
+
+# - name: Add 'ova_full_pathname' & 'exported_image_id' variable to localhost inventory (Command Module Path)
+#   ansible.builtin.add_host:
+#     name: "{{ execution_host_ip }}"
+#     groups: execution_host
+#     ova_full_pathname: "Exports/ova/{{ exported_image_id }}.ova"
+#     exported_image_id: "{{ exported_image_id }}"
+
+# - name: Add 'ova_full_pathname' variable to execution_host group (Command Module Path)
+#   ansible.builtin.add_host:
+#     name: "{{ execution_host_ip }}"
+#     groups: execution_host
+#     ova_full_pathname: "Exports/ova/{{ ova_export_filename.stdout }}.ova"
 
 # - name: Export EC2 Instance to OVA (Custom Ansible Module Path)
 #   ec2_export_ova:

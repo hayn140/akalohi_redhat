@@ -8,11 +8,11 @@
   remote_user: ec2-user
   roles:
     - setup_execution_host
-    - create_ec2_ova
+  #  - create_ec2_ova
     - create_ec2_dummy
 
 - name: Export OVA from Dummy Instance
-  hosts: ova_instances
+  hosts: execution_host
   remote_user: ec2-user
   environment:
     AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
@@ -27,16 +27,17 @@
     - verify_ova_export
 
 - name: Create VMDK, VHD and QCOW2 Images from OVA
-  hosts: ova_instances
+  hosts: execution_host
   remote_user: ec2-user
   roles:
     - extract_vmdk_from_ova
     - convert_vmdk_to_vhd_qcow2
     - upload_files_to_s3
 
-- name: Cleanup AMIs, Snapshots, and Instances
+- name: Cleanup AMIs, Snapshots, Instances, and Execution Host
   hosts: execution_host
   remote_user: ec2-user
   roles:
     - cleanup_ami_snapshots
     - terminate_ec2_instances
+    - cleanup_execution_host

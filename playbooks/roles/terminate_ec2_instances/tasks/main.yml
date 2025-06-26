@@ -10,14 +10,14 @@
     secret_key: "{{ aws_secret_key }}"
     wait: true
   loop:
-    - "{{ ova_instance_id }}"
+    # - "{{ ova_instance_id }}"
     - "{{ dummy_ec2_instance_id }}"
 
-- name: All Image Conversions COMPLETE!
-  ansible.builtin.debug:
-    msg: "{{ item }}"
-  loop:
-    - "OVA: {{ ova_full_pathname }}"
-    - "VMDK: {{ vmdk_full_pathname }}"
-    - "VHD: {{ vhd_full_pathname }}"
-    - "QCOW2: {{ qcow2_full_pathname }}"
+# - name: All Image Conversions COMPLETE!
+#   ansible.builtin.debug:
+#     msg: "{{ item }}"
+#   loop:
+#     - "OVA: {{ ova_full_pathname }}"
+#     - "VMDK: {{ vmdk_full_pathname }}"
+#     - "VHD: {{ vhd_full_pathname }}"
+#     - "QCOW2: {{ qcow2_full_pathname }}"
