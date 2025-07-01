@@ -21,11 +21,11 @@
       var: aws_session_token
 
   - name: Install pip and awscli
-  ansible.builtin.package:
-    name: 
-      - python3-pip
-      - awscli
-    state: latest
+    ansible.builtin.package:
+      name: 
+        - python3-pip
+        - awscli
+      state: latest
 
   - name: Install boto3 and botocore (AWS SDK)
     ansible.builtin.pip:
