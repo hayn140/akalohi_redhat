@@ -26,6 +26,7 @@
         - python3-pip
         - awscli
       state: latest
+    become: true
 
   - name: Install boto3 and botocore (AWS SDK)
     ansible.builtin.pip:
