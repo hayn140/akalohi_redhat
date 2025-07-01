@@ -20,6 +20,20 @@
     ansible.builtin.debug:
       var: aws_session_token
 
+  - name: Install pip and awscli
+  ansible.builtin.package:
+    name: 
+      - python3-pip
+      - awscli
+    state: latest
+
+  - name: Install boto3 and botocore (AWS SDK)
+    ansible.builtin.pip:
+      name:
+       - boto3
+       - botocore
+      executable: pip3
+  
   - name: get ec2 info
     amazon.aws.ec2_instance_info:
       access_key: "{{ aws_access_key }}"
