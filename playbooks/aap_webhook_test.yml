@@ -2,6 +2,10 @@
 
 - hosts: execution_host
   become: false
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
+    AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
+    AWS_SESSION_TOKEN: "{{ aws_session_token }}"
   tasks:
 
   - name: debug aap variable
@@ -35,9 +39,7 @@
        - botocore
       executable: pip3
   
-  - name: get ec2 info
-    amazon.aws.ec2_instance_info:
-      access_key: "{{ aws_access_key }}"
-      secret_key: "{{ aws_secret_key }}"
-      session_token: "{{ aws_session_token }}"
+  - name: test credentials
+    ansible.builtin.command:
+      cmd: aws sts get-caller-identity
       
