@@ -1,0 +1,9 @@
+---
+
+- hosts: execution_host
+  become: false
+  tasks:
+
+  - name: debug aap variable
+    ansible.builtin.debug:
+      var: s3_key
