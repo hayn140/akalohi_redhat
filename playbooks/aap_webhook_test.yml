@@ -7,3 +7,15 @@
   - name: debug aap variable
     ansible.builtin.debug:
       var: s3_key
+
+  - name: debug aap variable
+    ansible.builtin.debug:
+      var: aws_access_key
+
+  - name: debug aap variable
+    ansible.builtin.debug:
+      var: aws_secret_key
+
+  - name: debug aap variable
+    ansible.builtin.debug:
+      var: aws_session_token
