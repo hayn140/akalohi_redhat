@@ -19,3 +19,10 @@
   - name: debug aap variable
     ansible.builtin.debug:
       var: aws_session_token
+
+  - name: get ec2 info
+    amazon.aws.ec2_instance_info:
+      access_key: "{{ aws_access_key }}"
+      secret_key: "{{ aws_secret_key }}"
+      session_token: "{{ aws_session_token }}"
+      
