@@ -39,7 +39,12 @@
        - botocore
       executable: pip3
   
-  - name: test credentials
+  - name: test AWS lambda exported credentials
     ansible.builtin.command:
       cmd: aws sts get-caller-identity
+    register: credential_test
+
+  - name: Reveal credential_test results
+    ansible.builtin.debug:
+      var: credential_test
       
