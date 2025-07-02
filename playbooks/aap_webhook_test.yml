@@ -76,10 +76,16 @@
     ansible.builtin.debug:
       var: ami_name.import_image.import_task_id
 
-  - name: Check status of import image
+  - name: Wait for AMI import task to complete
     amazon.aws.ec2_import_image_info:
+      region: us-east-2
       filters:
         - Name: "tag:Name"
-          Values: ["clone-vm-import-image"]
+          Values: ["ova-import-image"]
         - Name: "task-state"
-          Values: ["completed", "active"]
+          Values: ["completed"]
+    register: ami_info
+    until: ami_info.import_image.status == 'Completed'
+    retries: 120
+    delay: 30
+
