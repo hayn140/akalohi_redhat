@@ -47,4 +47,3 @@
   - name: Reveal credential_test results
     ansible.builtin.debug:
       var: credential_test.stdout_lines
-      
