@@ -46,22 +46,4 @@
 
   - name: Reveal credential_test results
     ansible.builtin.debug:
-      var: credential_test
-
-  - name: Import image
-    amazon.aws.ec2_import_image:
-      state: present
-      task_name: "ova-import-image"
-      disk_containers:
-        - format: ova
-          user_bucket:
-            s3_bucket: "akalohi-aws-bucket-imports"
-            s3_key: "{{ s3_key }}"
-    register: ami_name
-
-  - name: Reveal ami name
-    ansible.builtin.debug:
-      var: ami_name.image_id
-
-      
-      
+      var: credential_test.stdout_lines
