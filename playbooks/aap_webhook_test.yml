@@ -74,8 +74,8 @@
 
   - name: "Wait 60 minutes & check every 30 Seconds for AMI {{ imported_ami_id }} to become available"
     amazon.aws.ec2_ami_info:
-    filters:
-      name: "{{ imported_ami_id }}"
+      filters:
+        name: "{{ imported_ami_id }}"
     register: imported_ami_info
     until: imported_ami_info.images.state == 'available'
     retries: 120
