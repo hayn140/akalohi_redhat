@@ -51,6 +51,7 @@
   - name: Import image
     amazon.aws.ec2_import_image:
       state: present
+      region: us-east-2
       task_name: "ova-import-image"
       access_key: "{{ aws_access_key }}"
       secret_key: "{{ aws_secret_key }}"
