@@ -85,7 +85,11 @@
         - Name: "task-state"
           Values: ["completed"]
     register: ami_info
-    until: ami_info.import_image.status == 'Completed'
-    retries: 120
-    delay: 30
+    # until: ami_info.import_image.status == 'Completed'
+    # retries: 120
+    # delay: 30
+
+  - name: Reveal ami_info variable
+    ansible.builtin.debug:
+      var: ami_info
 
