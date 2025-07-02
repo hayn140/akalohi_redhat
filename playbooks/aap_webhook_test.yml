@@ -77,7 +77,7 @@
       filters:
         name: "{{ imported_ami_id }}"
     register: imported_ami_info
-    until: imported_ami_info.images.state == 'available'
+    until: imported_ami_info.images[0].state == 'available'
     retries: 120
     delay: 30
 
