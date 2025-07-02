@@ -48,7 +48,7 @@
     ansible.builtin.debug:
       var: credential_test.stdout_lines
 
-  - name: Import image
+  - name: Import OVA image as an AMI
     amazon.aws.ec2_import_image:
       state: present
       region: us-east-2
@@ -62,34 +62,26 @@
           user_bucket:
             s3_bucket: "akalohi-aws-bucket-imports"
             s3_key: "{{ s3_key }}"
-    register: ami_name
-
-  - name: Reveal ami_name variable
-    ansible.builtin.debug:
-      var: ami_name
+    register: ami_import_result
       
-  - name: Reveal ami id
-    ansible.builtin.debug:
-      var: ami_name.import_image.image_id
+  - name: Assign 'imported_ami_id' Variable
+    ansible.builtin.set_fact:
+      imported_ami_id: "{{ ami_import_result.import_image.image_id }}"
 
-  - name: Reveal ami import task id
+  - name: Reveal 'imported_ami_id' Variable
     ansible.builtin.debug:
-      var: ami_name.import_image.import_task_id
+      var: imported_ami_id
 
-  - name: Wait for AMI import task to complete
-    amazon.aws.ec2_import_image_info:
-      region: us-east-2
-      filters:
-        - Name: "tag:Name"
-          Values: ["ova-import-image"]
-        - Name: "task-state"
-          Values: ["completed"]
-    register: ami_info
-    # until: ami_info.import_image.status == 'Completed'
-    # retries: 120
-    # delay: 30
+  - name: "Wait 60 minutes & check every 30 Seconds for AMI {{ imported_ami_id }} to become available"
+    amazon.aws.ec2_ami_info:
+    filters:
+      name: "{{ imported_ami_id }}"
+    register: imported_ami_info
+    until: imported_ami_info.images.state == 'available'
+    retries: 120
+    delay: 30
 
   - name: Reveal ami_info variable
     ansible.builtin.debug:
-      var: ami_info
+      var: imported_ami_info
 
