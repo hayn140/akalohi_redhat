@@ -56,6 +56,7 @@
       access_key: "{{ aws_access_key }}"
       secret_key: "{{ aws_secret_key }}"
       role_name: 'vmimport'
+      license_type: 'BYOL'
       disk_containers:
         - format: ova
           user_bucket:
@@ -74,3 +75,11 @@
   - name: Reveal ami import task id
     ansible.builtin.debug:
       var: ami_name.import_image.import_task_id
+
+  - name: Check status of import image
+    amazon.aws.ec2_import_image_info:
+      filters:
+        - Name: "tag:Name"
+          Values: ["clone-vm-import-image"]
+        - Name: "task-state"
+          Values: ["completed", "active"]
