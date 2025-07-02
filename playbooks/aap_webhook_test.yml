@@ -63,10 +63,14 @@
             s3_key: "{{ s3_key }}"
     register: ami_name
 
-  - name: Reveal ami name
+  - name: Reveal ami_name variable
     ansible.builtin.debug:
-      var: ami_name.image_id
+      var: ami_name
+      
+  - name: Reveal ami id
+    ansible.builtin.debug:
+      var: ami_name.import_image.image_id
 
-  - name: Reveal ami name
+  - name: Reveal ami import task id
     ansible.builtin.debug:
-      var: ami_name.import_task_id
+      var: ami_name.import_image.import_task_id
