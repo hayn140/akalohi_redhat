@@ -1,3 +1,11 @@
+# This lambda function sends AAP the following
+#   - s3_key : Key of the uploaded file (Triggered by a .ova uploaded in Imports/)
+#   - s3_bucket : AWS Bucket name
+#   - aws_region: AWS Region
+#   - aws_access_key : credentials
+#   - aws_secret_key : credentials
+#   - aws_session_token: credentials
+#   - 
 import json
 import requests
 import boto3
