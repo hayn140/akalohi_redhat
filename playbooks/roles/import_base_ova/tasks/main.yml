@@ -28,20 +28,7 @@
   ansible.builtin.debug:
     msg: "Import Task ID: {{ imported_ami_task_id }}"
 
-- name: "Gather status"
-  ansible.builtin.command:
-    cmd: >
-      aws ec2 describe-import-image-tasks 
-      --import-task-ids "{{ imported_ami_task_id }}"
-      --query 'ImportImageTasks[0].Status'
-      --output text
-  register: imported_ami_status
-
-- name: debug
-  ansible.builtin.debug:
-    var: imported_ami_status
-
-- name: "Wait 60 minutes & check every 30 Seconds for {{ imported_ami_id }} to become available"
+- name: Wait 60 minutes & check every 30 Seconds for Imported AMI to become available
   ansible.builtin.command:
     cmd: >
       aws ec2 describe-import-image-tasks 
@@ -76,4 +63,3 @@
   ansible.builtin.set_fact:
     ami_image_id: "{{ imported_ami_id }}"
 
-    
