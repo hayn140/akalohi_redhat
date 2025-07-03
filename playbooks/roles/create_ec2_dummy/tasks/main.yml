@@ -8,6 +8,8 @@
     image_id: "{{ ami_image_id }}"
     count: 1
     region: "{{ aws_region }}"
+    vpc_subnet_id: "{{ ec2_subnet_id }}"
+    security_group: "{{ ec2_security_group }}"
     state: running
     wait: true
   register: ec2_dummy_result
