@@ -7,7 +7,6 @@ def get_secret():
     secret_name = "aap_api_key"
     region_name = "us-east-2"
 
-    # Create a Secrets Manager client
     session = boto3.session.Session()
     client = session.client(
         service_name='secretsmanager',
@@ -21,17 +20,18 @@ def get_secret():
     except ClientError as e:
         raise e
 
-    secret = get_secret_value_response['SecretString']
-    return secret
-
+    return get_secret_value_response['SecretString']
 
 def lambda_handler(event, context):
+    # Extract S3 object info
     key = event['Records'][0]['s3']['object']['key']
+    bucket_name = event['Records'][0]['s3']['bucket']['name']
+    region = event['Records'][0]['awsRegion']
     api_secret = get_secret()
 
-    print(f"Triggering AAP job via API launch for s3_key: {key}")
+    print(f"Triggering AAP job via API launch for s3_key: {key}, bucket: {bucket_name}, region: {region}")
 
-    # Get temporary AWS credentials from Lambda's execution role
+    # Get temporary AWS credentials
     credentials = boto3.Session().get_credentials().get_frozen_credentials()
     aws_access_key = credentials.access_key
     aws_secret_key = credentials.secret_key
@@ -46,10 +46,12 @@ def lambda_handler(event, context):
         "Authorization": f"Bearer {api_secret}"
     }
 
-    # Include all required vars in payload
+    # Payload with s3 info and region
     payload = {
         "extra_vars": {
             "s3_key": key,
+            "s3_bucket_name": bucket_name,
+            "aws_region": region,
             "aws_access_key": aws_access_key,
             "aws_secret_key": aws_secret_key,
             "aws_session_token": aws_session_token
@@ -62,6 +64,7 @@ def lambda_handler(event, context):
         print("✅ AAP job triggered successfully!")
     else:
         print(f"❌ Failed to trigger AAP: {response.status_code} - {response.text}")
+
     return {
         'statusCode': response.status_code
     }

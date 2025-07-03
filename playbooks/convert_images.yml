@@ -11,6 +11,7 @@
     AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
   roles:
     - setup_execution_host
+    - import_base_ova
     - create_ec2_dummy
     - export_ec2_dummy_to_ova
     - verify_ova_export
