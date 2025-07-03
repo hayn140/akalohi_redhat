@@ -1,0 +1,71 @@
+# tasks file for import_base_ova
+
+- name: Start import image task
+  ansible.builtin.debug:
+    msg: "Importing {{ s3_bucket_name }}/{{ s3_key }} into AWS as an AMI"
+
+- name: Import OVA image as an AMI
+  amazon.aws.ec2_import_image:
+    state: present
+    region: "{{ aws_region }}"
+    task_name: "ova-import-image-{{ ansible_date_time.epoch }}"
+    access_key: "{{ aws_access_key }}"
+    secret_key: "{{ aws_secret_key }}"
+    role_name: "{{ iam_role_name }}"
+    license_type: 'BYOL'
+    disk_containers:
+      - format: ova
+        user_bucket:
+          s3_bucket: "{{ s3_bucket_name }}"
+          s3_key: "{{ s3_key }}"
+  register: ami_import_result
+    
+- name: Assign 'imported_ami_task_id' Variable
+  ansible.builtin.set_fact:
+    imported_ami_task_id: "{{ ami_import_result.import_image.import_task_id }}"
+
+- name: Reveal 'imported_ami_task_id' Variable
+  ansible.builtin.debug:
+    msg: "Import Task ID: {{ imported_ami_task_id }}"
+
+- name: "Gather status"
+  ansible.builtin.command:
+    cmd: >
+      aws ec2 describe-import-image-tasks 
+      --import-task-ids "{{ imported_ami_task_id }}"
+      --query 'ImportImageTasks[0].Status'
+      --output text
+  register: imported_ami_status
+
+- name: debug
+  ansible.builtin.debug:
+    var: imported_ami_status
+
+- name: "Wait 60 minutes & check every 30 Seconds for {{ imported_ami_id }} to become available"
+  ansible.builtin.command:
+    cmd: >
+      aws ec2 describe-import-image-tasks 
+      --import-task-ids "{{ imported_ami_task_id }}"
+      --query 'ImportImageTasks[0].Status'
+      --output text
+  register: imported_ami_status
+  until: imported_ami_status.stdout == 'completed'
+  retries: 120
+  delay: 30
+
+- name: Retrieve created imported AMI ID
+  ansible.builtin.command:
+    cmd: >
+      aws ec2 describe-import-image-tasks 
+      --import-task-ids "{{ imported_ami_task_id }}"
+      --query 'ImportImageTasks[0].ImageId'
+      --output text
+  register: imported_ami_info
+
+- name: Set 'imported_ami_id' Variable
+  ansible.builtin.set_fact:
+    imported_ami_id: "{{ imported_ami_info.stdout }}"
+
+- name: Reveal 'imported_ami_id' Variable
+  ansible.builtin.debug:
+    var: imported_ami_id

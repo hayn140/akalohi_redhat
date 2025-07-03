@@ -10,7 +10,7 @@
 
   - name: Start import image task
     ansible.builtin.debug:
-      msg: "Importing {{ s3_key }} into AWS as an AMI"
+      msg: "Importing {{ s3_bucket_name }}/{{ s3_key }} into AWS as an AMI"
 
   - name: Install pip and awscli
     ansible.builtin.package:
