@@ -15,13 +15,6 @@
      - botocore
     executable: pip3
 
-- name: debug
-  ansible.builtin.debug:
-    var: |
-      aws_access_key
-      aws_secret_key
-      aws_session_token
-      
 # - name: Create AWS credentials directory
 #   ansible.builtin.file:
 #     path: /root/.aws
