@@ -5,7 +5,7 @@
 #   - aws_access_key : credentials
 #   - aws_secret_key : credentials
 #   - aws_session_token: credentials
-#   - 
+
 import json
 import requests
 import boto3
@@ -46,7 +46,7 @@ def lambda_handler(event, context):
     aws_session_token = credentials.token
 
     # AAP API endpoint
-    job_template_id = 42
+    job_template_id = 41
     aap_url = f"https://aap-aap.apps.cluster-wb8g6-1.dynamic.redhatworkshops.io/api/controller/v2/job_templates/{job_template_id}/launch/"
 
     headers = {
@@ -70,6 +70,7 @@ def lambda_handler(event, context):
 
     if response.status_code in [200, 201, 202]:
         print("✅ AAP job triggered successfully!")
+        
     else:
         print(f"❌ Failed to trigger AAP: {response.status_code} - {response.text}")
 
