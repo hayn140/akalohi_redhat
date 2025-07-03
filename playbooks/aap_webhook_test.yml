@@ -88,3 +88,7 @@
   - name: Set 'imported_ami_id' Variable
     ansible.builtin.set_fact:
       imported_ami_id: "{{ imported_ami_info.stdout }}"
+
+  - name: Reveal 'imported_ami_id' Variable
+    ansible.builtin.debug:
+      var: imported_ami_id
