@@ -17,4 +17,14 @@
       - "{{ aws_region }}"
       - "{{ image_type }}"
 
+  - name: Image is an ova
+    ansible.builtin.debug:
+      var: s3_key
+    when: image_type == 'ova'
+
+  - name: Image is a vmdk
+    ansible.builtin.debug:
+      var: s3_key
+    when: image_type == 'vmdk'
+
   
