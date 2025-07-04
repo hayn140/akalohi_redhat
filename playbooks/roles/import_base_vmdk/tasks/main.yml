@@ -36,7 +36,7 @@
   until: imported_snapshot_status.stdout == 'completed'
   retries: 120
   delay: 30
-########## This is where the issue is, no snapshot id is being registered ###########
+
 - name: Retrieve Snapshot ID
   ansible.builtin.command:
     cmd: >
