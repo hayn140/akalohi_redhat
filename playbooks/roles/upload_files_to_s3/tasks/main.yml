@@ -9,6 +9,8 @@
     mode: put
     access_key: "{{ aws_access_key }}"
     secret_key: "{{ aws_secret_key }}"
+    session_token: "{{ aws_session_token }}"
+    validate_certs: false
   loop:
     - local_source_file: "{{ path_to_vmdk }}"
       s3_destination_path: "Exports/vmdk/{{ exported_image_id }}.vmdk"

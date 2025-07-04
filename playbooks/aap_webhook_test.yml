@@ -8,82 +8,14 @@
     AWS_SESSION_TOKEN: "{{ aws_session_token }}"
   tasks:
 
-  - name: debug aap variable
+  - name: Reveal Exported Variables from Lambda Function
     ansible.builtin.debug:
-      var: s3_key
-
-  - name: debug aap variable
-    ansible.builtin.debug:
-      var: aws_access_key
-
-  - name: debug aap variable
-    ansible.builtin.debug:
-      var: aws_secret_key
-
-  - name: debug aap variable
-    ansible.builtin.debug:
-      var: aws_session_token
-
-  - name: Install pip and awscli
-    ansible.builtin.package:
-      name: 
-        - python3-pip
-        - awscli
-      state: latest
-    become: true
-
-  - name: Install boto3 and botocore (AWS SDK)
-    ansible.builtin.pip:
-      name:
-       - boto3
-       - botocore
-      executable: pip3
-  
-  - name: test AWS lambda exported credentials
-    ansible.builtin.command:
-      cmd: aws sts get-caller-identity
-    register: credential_test
-
-  - name: Reveal credential_test results
-    ansible.builtin.debug:
-      var: credential_test.stdout_lines
-
-  - name: Import OVA image as an AMI
-    amazon.aws.ec2_import_image:
-      state: present
-      region: us-east-2
-      task_name: "ova-import-image"
-      access_key: "{{ aws_access_key }}"
-      secret_key: "{{ aws_secret_key }}"
-      role_name: 'vmimport'
-      license_type: 'BYOL'
-      disk_containers:
-        - format: ova
-          user_bucket:
-            s3_bucket: "akalohi-aws-bucket-imports"
-            s3_key: "{{ s3_key }}"
-    register: ami_import_result
-      
-  - name: Assign 'imported_ami_id' Variable
-    ansible.builtin.set_fact:
-      imported_ami_id: "{{ ami_import_result.import_image.image_id }}"
-
-  - name: Reveal 'imported_ami_id' Variable
-    ansible.builtin.debug:
-      var: imported_ami_id
-
-  - name: "Wait 60 minutes & check every 30 Seconds for AMI {{ imported_ami_id }} to become available"
-    amazon.aws.ec2_ami_info:
-      region: us-east-2
-      image_ids: "{{ imported_ami_id }}"
-      # filters:
-      #   image-id: "{{ imported_ami_id }}"
-    register: imported_ami_info
-    # until: imported_ami_info.images[0].state == 'available'
-    # retries: 120
-    # delay: 30
-    # ignore_errors: true
-
-  - name: Reveal imported_ami_info variable
-    ansible.builtin.debug:
-      var: imported_ami_info
+      msg: "{{ item }}"
+    loop:
+      - "{{ s3_key }}"
+      - "{{ s3_bucket_name }}"
+      - "{{ aws_region }}"
+      - "{{ image_type }}"
+      - "{{ aws_access_key }}"
+      - "{{ aws_secret_key }}"
+      - "{{ aws_session_token }}"

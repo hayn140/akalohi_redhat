@@ -6,8 +6,10 @@
     instance_ids: "{{ item }}"
     region: "{{ aws_region }}"
     state: terminated
+    wait: true
     access_key: "{{ aws_access_key }}"
     secret_key: "{{ aws_secret_key }}"
-    wait: true
+    session_token: "{{ aws_session_token }}"
+    validate_certs: false
   loop:
     - "{{ dummy_ec2_instance_id }}"

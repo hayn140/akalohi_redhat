@@ -5,6 +5,10 @@
   amazon.aws.ec2_ami_info:
     filters:
       name: "{{ exported_image_id }}"
+    access_key: "{{ aws_access_key }}"
+    secret_key: "{{ aws_secret_key }}"
+    session_token: "{{ aws_session_token }}"
+    validate_certs: false
   register: associated_ami_info
 
 - name: Display Associated AMI ID
@@ -16,3 +20,7 @@
     image_id: "{{ associated_ami_info.images[0].image_id }}"
     delete_snapshot: true
     state: absent
+    access_key: "{{ aws_access_key }}"
+    secret_key: "{{ aws_secret_key }}"
+    session_token: "{{ aws_session_token }}"
+    validate_certs: false

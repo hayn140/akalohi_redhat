@@ -8,6 +8,8 @@
     object_name: "{{ ova_full_pathname }}"
     access_key: "{{ aws_access_key }}"
     secret_key: "{{ aws_secret_key }}"
+    session_token: "{{ aws_session_token }}"
+    validate_certs: false
   register: s3_check
   retries: 120
   delay: 30
