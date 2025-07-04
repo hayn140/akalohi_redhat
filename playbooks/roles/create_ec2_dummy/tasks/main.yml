@@ -5,7 +5,7 @@
   amazon.aws.ec2_instance:
     name: dummy_instance
     instance_type: "{{ ec2_instance_type }}"
-    image_id: "{{ ami_image_id }}"
+    image_id: "{{ provisioned_ami_image_id }}"
     count: 1
     region: "{{ aws_region }}"
     vpc_subnet_id: "{{ ec2_subnet_id }}"

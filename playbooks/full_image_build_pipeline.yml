@@ -1,0 +1,56 @@
+---
+
+# Collections needed for this playbook
+#  - amazon.aws
+
+- name: Setup & Import Images
+  hosts: execution_host
+  remote_user: ec2-user
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
+    AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
+    AWS_SESSION_TOKEN: "{{ aws_session_token }}"
+  
+  tasks:
+    - name: Setup Execution Host
+      ansible.builtin.import_role:
+        name: setup_execution_host
+    
+    - name: OVA Image Detected, Beginning OVA Import
+      ansible.builtin.import_role:
+        name: import_base_ova
+      when: image_type == 'ova'
+    
+    - name: VMDK Image Detected, Beginning VMDK Import
+      ansible.builtin.import_role:
+        name: import_base_vmdk
+      when: image_type == 'vmdk'
+
+# - name: Packerize & Create Provisioned AMI
+#   hosts: execution_host
+#   remote_user: ec2-user
+#   environment:
+#     AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
+#     AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
+#     AWS_SESSION_TOKEN: "{{ aws_session_token }}"
+
+- name: Convert AMI to OVA, VMDK, QCOW2, & VHD Format, then Cleanup
+  hosts: execution_host
+  remote_user: ec2-user
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
+    AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
+    AWS_SESSION_TOKEN: "{{ aws_session_token }}"
+
+  roles:
+    - create_ec2_dummy
+    - export_ec2_dummy_to_ova
+    - verify_ova_export
+    - extract_vmdk_from_ova
+    - convert_vmdk_to_vhd_qcow2
+    - upload_files_to_s3
+    - cleanup_ami_snapshots
+    - terminate_ec2_instances
+    - cleanup_execution_host
+
+  

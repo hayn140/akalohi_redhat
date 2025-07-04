@@ -107,7 +107,7 @@
 
 # Remove this task when you're ready to incorporate packer playbooks.
 # This task is meant to go straight from import to conversion to ova, vmdk, vhd, qcow2 etc.
-- name: Skipping Packer Playbooks temporarily, setting ami_image_id variable 
+- name: Skipping Packer Playbooks temporarily, setting provisioned_ami_image_id variable 
   ansible.builtin.set_fact:
-    ami_image_id: "{{ imported_ami_id }}"
+    provisioned_ami_image_id: "{{ imported_ami_id }}"
 
