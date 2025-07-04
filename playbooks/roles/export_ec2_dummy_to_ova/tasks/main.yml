@@ -9,6 +9,7 @@
       --instance-id "{{ dummy_ec2_instance_id }}"
       --target-environment vmware
       --export-to-s3-task ContainerFormat=ova,DiskImageFormat=vmdk,S3Bucket="{{ s3_bucket_name }}",S3Prefix="Exports/ova/"
+      --no-verify-ssl
       --query 'ExportTask.ExportTaskId' 
       --output text
   become: false

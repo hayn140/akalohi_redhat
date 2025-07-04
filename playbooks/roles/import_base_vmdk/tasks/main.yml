@@ -1,21 +1,65 @@
 # tasks file for import_base_ova
 
-- name: Start import image task
+- name: Start Import Image Process
   ansible.builtin.debug:
-    msg: "Importing {{ s3_bucket_name }}/{{ s3_key }} into AWS as an AMI"
+    msg: "Importing {{ s3_bucket_name }}/{{ s3_key }} into AWS as a Snapshot"
 
-- name: Import OVA image as an AMI
+- name: Import VMDK into AWS as a Snapshot
+  ansible.builtin.command: >
+    aws ec2 import-snapshot
+    --description "vmdk-import-snapshot-{{ ansible_date_time.epoch }}"
+    --region "{{ aws_region }}"
+    --no-verify-ssl
+    --role-name "{{ iam_role_name }}"
+    --disk-container "Format=VMDK,UserBucket={S3Bucket={{ s3_bucket_name }},S3Key={{ s3_key }}}"
+    --query 'ImportTaskId'
+    --output text
+  register: import_snapshot_result
+
+- name: Assign 'import_snapshot_task_id' Variable
+  ansible.builtin.set_fact:
+    import_snapshot_task_id: "{{ import_snapshot_result.stdout }}"
+
+- name: Reveal 'import_snapshot_task_id' Variable
+  ansible.builtin.debug:
+    msg: "Import Snapshot Task ID: {{ import_snapshot_task_id }}"
+
+- name: Wait 60 minutes & check every 30 Seconds for Snapshot Import to Complete
+  ansible.builtin.command:
+    cmd: >
+      aws ec2 describe-import-snapshot-tasks 
+      --import-task-id "{{ import_snapshot_task_id }}"
+      --no-verify-ssl
+      --query 'ImportSnapshotTasks[0].SnapshotTaskDetail.Status' 
+      --output text
+  register: imported_snapshot_status
+  until: imported_snapshot_status.stdout == 'completed'
+  retries: 120
+  delay: 30
+
+- name: Retrieve Snapshot ID
+  ansible.builtin.command:
+    cmd: >
+      aws ec2 describe-import-image-tasks 
+      --import-task-ids "{{ import_snapshot_task_id }}"
+      --no-verify-ssl
+      --query 'ImportSnapshotTasks[0].SnapshotTaskDetail.SnapshotId'
+      --output text
+  register: imported_snapshot_info
+
+- name: Set 'imported_snapshot_id'
+  ansible.builtin.set_fact:
+    imported_snapshot_id: "{{ imported_snapshot_info.stdout }}"
+
+- name: Convert Snapshot into an AMI
   amazon.aws.ec2_import_image:
     state: present
     region: "{{ aws_region }}"
-    task_name: "ova-import-image-{{ ansible_date_time.epoch }}"
+    task_name: "convert-snapshot-to-ami-{{ ansible_date_time.epoch }}"
     role_name: "{{ iam_role_name }}"
     license_type: 'BYOL'
     disk_containers:
-      - format: ova
-        user_bucket:
-          s3_bucket: "{{ s3_bucket_name }}"
-          s3_key: "{{ s3_key }}"
+      - snapshot_id: "{{ imported_snapshot_id }}"
     access_key: "{{ aws_access_key }}"
     secret_key: "{{ aws_secret_key }}"
     session_token: "{{ aws_session_token }}"

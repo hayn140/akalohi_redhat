@@ -12,12 +12,17 @@
     security_group: "{{ ec2_security_group }}"
     state: running
     wait: true
+    access_key: "{{ aws_access_key }}"
+    secret_key: "{{ aws_secret_key }}"
+    session_token: "{{ aws_session_token }}"
+    validate_certs: false
   register: ec2_dummy_result
 
 - name: Wait for instance to pass 2/2 checks using AWS CLI
-  ansible.builtin.shell: |
-    aws ec2 wait instance-status-ok \
-    --instance-ids {{ ec2_dummy_result.instances[0].instance_id }} \
+  ansible.builtin.command: >
+    aws ec2 wait instance-status-ok
+    --instance-ids {{ ec2_dummy_result.instances[0].instance_id }}
+    --no-verify-ssl
     --region {{ aws_region }}
   changed_when: false
 

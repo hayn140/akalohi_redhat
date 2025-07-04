@@ -12,7 +12,8 @@
     AWS_SESSION_TOKEN: "{{ aws_session_token }}"
   roles:
     - setup_execution_host
-    - import_base_ova
+    # - import_base_ova
+    - import_base_vmdk
     - create_ec2_dummy
     - export_ec2_dummy_to_ova
     - verify_ova_export
