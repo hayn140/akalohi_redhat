@@ -34,7 +34,7 @@
 #     AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
 #     AWS_SESSION_TOKEN: "{{ aws_session_token }}"
 
-- name: Convert AMI to OVA, VMDK, QCOW2, & VHD Format, then Cleanup
+- name: Convert Provisioned AMI to OVA, VMDK, QCOW2, & VHD Format, then Cleanup
   hosts: execution_host
   remote_user: ec2-user
   environment:
