@@ -3,7 +3,7 @@
 # Collections needed for this playbook
 #  - amazon.aws
 
-- name: Setup & Import Images
+- name: Setup Execution Host & Import Images
   hosts: execution_host
   remote_user: ec2-user
   environment:
