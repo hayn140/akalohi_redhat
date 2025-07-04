@@ -5,6 +5,7 @@
 #   - aws_access_key : credentials
 #   - aws_secret_key : credentials
 #   - aws_session_token: credentials
+#   - image_type : The type of image being uploaded
 
 import json
 import os
@@ -51,7 +52,7 @@ def lambda_handler(event, context):
     aws_session_token = credentials.token
 
     # AAP API endpoint
-    job_template_id = 42
+    job_template_id = 41
     aap_url = f"https://aap-aap.apps.cluster-wb8g6-1.dynamic.redhatworkshops.io/api/controller/v2/job_templates/{job_template_id}/launch/"
 
     headers = {
