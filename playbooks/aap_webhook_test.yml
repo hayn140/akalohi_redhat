@@ -8,74 +8,14 @@
     AWS_SESSION_TOKEN: "{{ aws_session_token }}"
   tasks:
 
-  - name: Start import image task
+  - name: Reveal Exported Variables from Lambda Function
     ansible.builtin.debug:
-      msg: "Importing {{ s3_bucket_name }}/{{ s3_key }} into AWS as an AMI"
-
-  - name: Install pip and awscli
-    ansible.builtin.package:
-      name: 
-        - python3-pip
-        - awscli
-      state: latest
-    become: true
-
-  - name: Install boto3 and botocore (AWS SDK)
-    ansible.builtin.pip:
-      name:
-       - boto3
-       - botocore
-      executable: pip3
-
-  - name: Import OVA image as an AMI
-    amazon.aws.ec2_import_image:
-      state: present
-      region: us-east-2
-      task_name: "ova-import-image-{{ ansible_date_time.epoch }}"
-      access_key: "{{ aws_access_key }}"
-      secret_key: "{{ aws_secret_key }}"
-      role_name: 'vmimport'
-      license_type: 'BYOL'
-      disk_containers:
-        - format: ova
-          user_bucket:
-            s3_bucket: "akalohi-aws-bucket-imports"
-            s3_key: "{{ s3_key }}"
-    register: ami_import_result
-      
-  - name: Assign 'imported_ami_task_id' Variable
-    ansible.builtin.set_fact:
-      imported_ami_task_id: "{{ ami_import_result.import_image.import_task_id }}"
-
-  - name: Reveal 'imported_ami_task_id' Variable
-    ansible.builtin.debug:
-      msg: "Import Task ID: {{ imported_ami_task_id }}"
-
-  - name: "Wait 60 minutes & check every 30 Seconds for {{ imported_ami_id }} to become available"
-    ansible.builtin.command:
-      cmd: >
-        aws ec2 describe-import-image-tasks 
-        --import-task-ids "{{ imported_ami_task_id }}"
-        --query 'ImportImageTasks[0].Status'
-        --output text
-    register: imported_ami_status
-    until: imported_ami_status.stdout == 'completed'
-    retries: 120
-    delay: 30
-
-  - name: Retrieve created imported AMI ID
-    ansible.builtin.command:
-      cmd: >
-        aws ec2 describe-import-image-tasks 
-        --import-task-ids "{{ imported_ami_task_id }}"
-        --query 'ImportImageTasks[0].ImageId'
-        --output text
-    register: imported_ami_info
-  
-  - name: Set 'imported_ami_id' Variable
-    ansible.builtin.set_fact:
-      imported_ami_id: "{{ imported_ami_info.stdout }}"
-
-  - name: Reveal 'imported_ami_id' Variable
-    ansible.builtin.debug:
-      var: imported_ami_id
+      msg: "{{ item }}"
+    loop:
+      - "{{ s3_key }}"
+      - "{{ s3_bucket_name }}"
+      - "{{ aws_region }}"
+      - "{{ image_type }}"
+      - "{{ aws_access_key }}"
+      - "{{ aws_secret_key }}"
+      - "{{ aws_session_token }}"
