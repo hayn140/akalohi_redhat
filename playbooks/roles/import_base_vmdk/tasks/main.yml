@@ -36,11 +36,11 @@
   until: imported_snapshot_status.stdout == 'completed'
   retries: 120
   delay: 30
-
+########## This is where the issue is, no snapshot id is being registered ###########
 - name: Retrieve Snapshot ID
   ansible.builtin.command:
     cmd: >
-      aws ec2 describe-import-image-tasks 
+      aws ec2 describe-import-snapshot-tasks 
       --import-task-ids "{{ import_snapshot_task_id }}"
       --no-verify-ssl
       --query 'ImportSnapshotTasks[0].SnapshotTaskDetail.SnapshotId'
