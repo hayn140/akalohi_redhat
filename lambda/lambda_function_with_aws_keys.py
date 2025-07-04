@@ -7,6 +7,7 @@
 #   - aws_session_token: credentials
 
 import json
+import os
 import requests
 import boto3
 from botocore.exceptions import ClientError
@@ -39,6 +40,10 @@ def lambda_handler(event, context):
 
     print(f"Triggering AAP job via API launch for s3_key: {key}, bucket: {bucket_name}, region: {region}")
 
+    # Extract file extension (e.g., 'ova')
+    _, ext = os.path.splitext(key)
+    image_type = ext.lstrip('.').lower()  # 'ova', 'vmdk', etc.
+
     # Get temporary AWS credentials
     credentials = boto3.Session().get_credentials().get_frozen_credentials()
     aws_access_key = credentials.access_key
@@ -46,7 +51,7 @@ def lambda_handler(event, context):
     aws_session_token = credentials.token
 
     # AAP API endpoint
-    job_template_id = 41
+    job_template_id = 42
     aap_url = f"https://aap-aap.apps.cluster-wb8g6-1.dynamic.redhatworkshops.io/api/controller/v2/job_templates/{job_template_id}/launch/"
 
     headers = {
@@ -62,7 +67,8 @@ def lambda_handler(event, context):
             "aws_region": region,
             "aws_access_key": aws_access_key,
             "aws_secret_key": aws_secret_key,
-            "aws_session_token": aws_session_token
+            "aws_session_token": aws_session_token,
+            "image_type": image_type
         }
     }
 
