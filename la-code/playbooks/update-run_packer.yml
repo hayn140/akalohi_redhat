@@ -1,0 +1,16 @@
+---
+- name: Run Packer Build from Ansible
+  hosts: localhost
+  become: true
+
+  vars:
+    packer_bin: "/usr/bin/packer" # This variable forces the play to run packer from this directory.  This should not be needed if packer installs in the /usr/local/packer directory...
+
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ aws_access_key_id }}" 
+    AWS_SECRET_ACCESS_KEY: "{{ aws_secret_access_key }}"
+    AWS_REGION: "{{ aws_region }}"    
+
+  roles:
+    - role: packer     
+ 

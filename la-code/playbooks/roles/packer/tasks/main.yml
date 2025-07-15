@@ -1,0 +1,34 @@
+---
+# tasks file for packer
+#
+- name: Template a file to /etc/file.conf
+  ansible.builtin.template:
+    src: variables.pkr.hcl.j2
+    dest: /home/ec2-user/packer-001/playbooks/variables.pkr.hcl
+    owner: ec2-user
+    group: ec2-user
+    mode: '0644'
+
+- name: Run Packer Init
+  ansible.builtin.shell: |
+    "{{ packer_bin }}" init .
+  register: init_result
+  failed_when: init_result.rc != 0
+
+- name: Run Packer Build
+  ansible.builtin.shell: |
+    "{{ packer_bin }}" build .  # This command will force packer to automatically load variable definitions 
+  register: build_result
+  failed_when: build_result.rc != 0
+
+- name: Show Packer Build Output
+  ansible.builtin.debug:
+    var: build_result.stdout_lines
+
+- name: Get AMI ID from Packer Output
+  ansible.builtin.set_fact:
+    provisioned_ami_id: "{{ (build_result.stdout | regex_findall('ami-[a-zA-Z0-9]+'))[1] }}" # This will pull the second iteration of the ami id
+
+- name: Show extracted AMI ID
+  ansible.builtin.debug:
+    var: provisioned_ami_id
