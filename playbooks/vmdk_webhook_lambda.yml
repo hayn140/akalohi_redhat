@@ -10,4 +10,11 @@
 - name: Upload VMDK image from RHSAT02 /var/tmp/ to S3 Bucket at Imports/ Directory
   hosts: rhsat02
   remote_user: ec2-user
-  become: false
+  become: true
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
+    AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
+    AWS_SESSION_TOKEN: "{{ aws_session_token }}"
+
+  roles:
+    - upload_vmdk_rhsat02_to_s3
