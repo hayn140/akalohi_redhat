@@ -1,27 +1,23 @@
 ---
 # tasks file for upload_files_to_s3
 
-- name: PUT VMDK, VHD, & QCOW2 files into S3 Bucket
+- name: Starting Upload task from RHSAT02 to S3:Imports/
+  ansible.builtin.debug:
+    msg: "Copying up /var/tmp/{{ s3_key }} from rhsat02 to the {{ s3_bucket_name }} S3 Bucket at Imports/{{ s3_key }}"
+
+- name: Upload VMDK file to S3 at Imports Directory
   amazon.aws.s3_object:
     bucket: "{{ s3_bucket_name }}"
-    src: "{{ item.local_source_file }}"
-    object: "{{ item.s3_destination_path }}"
+    src: "/var/tmp/{{ s3_key }}"
+    object: "Imports/{{ s3_key }} }}"
     mode: put
+    region: "{{ aws_region }}"
     access_key: "{{ aws_access_key }}"
     secret_key: "{{ aws_secret_key }}"
     session_token: "{{ aws_session_token }}"
     validate_certs: false
-  loop:
-    - local_source_file: "{{ path_to_vmdk }}"
-      s3_destination_path: "Exports/vmdk/{{ exported_image_id }}.vmdk"
-    - local_source_file: "{{ path_to_vhd }}"
-      s3_destination_path: "Exports/vhd/{{ exported_image_id }}.vhd"  
-    - local_source_file: "{{ path_to_qcow2 }}"
-      s3_destination_path: "Exports/qcow2/{{ exported_image_id }}.qcow2"
   register: s3_upload_results
 
-- name: Set S3 Export Image Pathname Variables 
-  ansible.builtin.set_fact:
-    vmdk_full_pathname: "{{ s3_upload_results.results[0].invocation.module_args.object }}"
-    vhd_full_pathname: "{{ s3_upload_results.results[1].invocation.module_args.object }}"
-    qcow2_full_pathname: "{{ s3_upload_results.results[2].invocation.module_args.object }}"
+- name: Debug
+  ansible.builtin.debug:
+    var: s3_upload_results
