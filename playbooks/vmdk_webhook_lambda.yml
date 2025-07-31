@@ -1,0 +1,13 @@
+---
+# This playbook will upload a VMDK image from /var/tmp/ on rhsat02 up to an S3 Bucket in the Imports/ Directory
+# On rhsat02, the /etc/systemd/system/vmdk-webhook-watcher.service is running
+# This service is monitoring /var/tmp/ to see if any files ending in *.vmdk appear, it's running a script located at /usr/local/bin/vmdk_webhook_watcher.sh
+# Once a VMDK appears in /var/tmp, it curls the webhook_url_lambda function url with the filename.
+# The webhook_rul_lambda function, then triggers an AAP template while also sending the AWS credentials, and the name of the image to be copied up.
+# AAP runs the following playbook to copy up those files to the S3 Bucket in the Imports/ Directory
+# This then triggers the other lambda function to perform the import, provision, and convert tasks. 
+
+- name: Upload VMDK image from RHSAT02 /var/tmp/ to S3 Bucket at Imports/ Directory
+  hosts: rhsat02
+  remote_user: ec2-user
+  become: false
