@@ -7,8 +7,8 @@
 # AAP runs the following playbook to copy up those files to the S3 Bucket in the Imports/ Directory
 # This then triggers the other lambda function to perform the import, provision, and convert tasks. 
 
-- name: Upload VMDK image from RHSAT02 /var/tmp/ to S3 Bucket at Imports/ Directory
-  hosts: all
+- name: Upload VMDK image from RHSAT02 "{{ rhsat02_source_dir }}" to the "{{ s3_bucket_name }}" S3 Bucket at Imports/ Directory
+  hosts: rhsat02_node
   remote_user: ec2-user
   become: true
   environment:
