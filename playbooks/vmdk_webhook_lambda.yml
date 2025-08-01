@@ -8,7 +8,7 @@
 # This then triggers the other lambda function to perform the import, provision, and convert tasks. 
 
 - name: Upload VMDK image from RHSAT02 /var/tmp/ to S3 Bucket at Imports/ Directory
-  hosts: rhsat02
+  hosts: all
   remote_user: ec2-user
   become: true
   environment:
