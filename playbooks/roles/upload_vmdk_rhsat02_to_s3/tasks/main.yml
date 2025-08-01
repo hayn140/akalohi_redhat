@@ -20,7 +20,7 @@
   amazon.aws.s3_object:
     bucket: "{{ s3_bucket_name }}"
     src: "{{ rhsat02_source_dir }}/{{ file_name }}"
-    object: "Imports/{{ file_name }} }}"
+    object: "Imports/{{ file_name }}"
     mode: put
     region: "{{ aws_region }}"
     access_key: "{{ aws_access_key }}"
