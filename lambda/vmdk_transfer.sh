@@ -10,12 +10,12 @@ mkdir -p "$(dirname "$LOGFILE")"
 touch "$LOGFILE"
 chmod 644 "$LOGFILE"
 
-# Log Function
+# Declare Log Function
 log() {
   echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - $*" | tee -a "$LOGFILE"
 }
 
-# SCP Copy Function
+# Declare SCP Copy Function
 transfer_to_worker_node() {
   FOUND_FILE="$1"
   SSH_USER="rh-ansible"
