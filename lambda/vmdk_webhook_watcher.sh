@@ -1,8 +1,8 @@
 #!/bin/bash
-# Place this file at /usr/local/bin/vmdk_webhook_watcher.sh
+# Place this file on Worker Node at /usr/local/bin/vmdk_webhook_watcher.sh
 
 # Configuration
-WATCH_DIR="/var/tmp"
+WATCH_DIR="/var/lib/portkey/temp_data"
 FUNCTION_URL="https://3stdeqd4prm7wp24vbsxxc34ne0zcfia.lambda-url.us-east-2.on.aws/"
 SECRET="s3cr3t-token-123"   # or export WEBHOOK_SECRET in environment and use ${WEBHOOK_SECRET}
 LOGFILE="/var/log/vmdk_webhook_watcher.log"
