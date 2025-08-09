@@ -1,5 +1,4 @@
 #!/bin/bash
-# Place this file on RHSAT02 at /usr/bin/local/vmdk_transfer.sh
 
 # Configuration
 WATCH_DIR="/var/lib/portkey/temp_data"
@@ -25,11 +24,16 @@ transfer_to_worker_node() {
   DEST_SERVER="nctx-ff-aapw02.nctx.nsa.ic.gov"
   DEST_DIR="$WATCH_DIR"
   
-  # Initiate Transfer to Worker Node
-  scp -i $PRIVATE_KEY_FILE $FOUND_FILE $SSH_USER@$DEST_SERVER:$DEST_DIR/
+  log "Starting SCP transfer: $(basename "$FOUND_FILE") -> $DEST_SERVER:$DEST_DIR"
 
-  # Remove file once it's done being transferred to the worker-node
-  rm -rf $FOUND_FILE
+  # Initiate Transfer to Worker Node
+  if scp -i "$PRIVATE_KEY_FILE" "$FOUND_FILE" "$SSH_USER@$DEST_SERVER:$DEST_DIR/"; then
+    log "Transfer complete: $(basename "$FOUND_FILE")"
+    # Remove file once it's done being transferred to the worker-node
+    rm -rf "$FOUND_FILE" && log "Deleted local file: $(basename "$FOUND_FILE")"
+  else
+    log "ERROR: Transfer failed for $(basename "$FOUND_FILE")"
+  fi
 }
 
 # Keep track of recent file events to avoid duplicates
