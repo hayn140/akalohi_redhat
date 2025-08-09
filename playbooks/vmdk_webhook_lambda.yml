@@ -9,7 +9,7 @@
 
 - name: "Upload VMDK image from RHSAT02 {{ rhsat02_source_dir }} to the {{ s3_bucket_name }} S3 Bucket at Imports/ Directory"
   hosts: rhsat02_node
-  remote_user: ec2-user
+  remote_user: rh-ansible
   become: true
   environment:
     AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
