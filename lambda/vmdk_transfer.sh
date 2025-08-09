@@ -1,5 +1,6 @@
 #!/bin/bash
-# This script is meant to be ran on RHSAT02 in /usr/local/bin/vmdk_transfer.sh
+# Place this file on RHSAT02 at /usr/bin/local/vmdk_transfer.sh
+
 # Configuration
 WATCH_DIR="/var/lib/portkey/temp_data"
 LOGFILE="/var/log/vmdk_transfer.log"
