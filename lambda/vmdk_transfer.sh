@@ -23,8 +23,12 @@ transfer_to_worker_node() {
   SOURCE_SERVER="ncmd-ff-rhsat02.ncmd.nsa.ic.gov"
   DEST_SERVER="nctx-ff-aapw02.nctx.nsa.ic.gov"
   DEST_DIR="$WATCH_DIR"
-
+  
+  # Initiate Transfer to Worker Node
   scp -i $PRIVATE_KEY_FILE $FOUND_FILE $SSH_USER@$DEST_SERVER:$DEST_DIR/
+
+  # Remove file once it's done being transferred to the worker-node
+  rm -rf $FOUND_FILE
 }
 
 # Keep track of recent file events to avoid duplicates
