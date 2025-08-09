@@ -1,0 +1,16 @@
+# This is meant to be ran on RHSAT02 at /etc/systemd/system/vmdk_transfer.service
+[Unit]
+Description=VMDK Webhook Watcher Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/vmdk_transfer.sh
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
