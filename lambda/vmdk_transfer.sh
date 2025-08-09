@@ -18,14 +18,13 @@ log() {
 # SCP Copy Function
 transfer_to_worker_node() {
   FOUND_FILE="$1"
-  PRIVATE_KEY_FILE="/home/ec2-user/.ssh/akalohi-aws.pem"
   SSH_USER="rh-ansible"
+  PRIVATE_KEY_FILE="/home/rh-ansible/.ssh/rh-ansible"
   SOURCE_SERVER="ncmd-ff-rhsat02.ncmd.nsa.ic.gov"
-  SOURCE_DIR="$WATCH_DIR"
   DEST_SERVER="nctx-ff-aapw02.nctx.nsa.ic.gov"
   DEST_DIR="$WATCH_DIR"
 
-  scp -i $PRIVATE_KEY_FILE $SOURCE_DIR/$FOUND_FILE $SSH_USER@$DEST_SERVER:$DEST_DIR/
+  scp -i $PRIVATE_KEY_FILE $FOUND_FILE $SSH_USER@$DEST_SERVER:$DEST_DIR/
 }
 
 # Keep track of recent file events to avoid duplicates
