@@ -1,4 +1,4 @@
-# This is meant to be ran on RHSAT02 at /etc/systemd/system/vmdk_transfer.service
+# Place this file on RHSAT02 at /etc/systemd/system/vmdk_transfer.service
 [Unit]
 Description=VMDK Webhook Watcher Service
 After=network.target
