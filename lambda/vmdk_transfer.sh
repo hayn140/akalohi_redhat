@@ -10,10 +10,12 @@ mkdir -p "$(dirname "$LOGFILE")"
 touch "$LOGFILE"
 chmod 644 "$LOGFILE"
 
+# Log Function
 log() {
   echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") - $*" | tee -a "$LOGFILE"
 }
 
+# SCP Copy Function
 transfer_to_worker_node() {
   FOUND_FILE="$1"
   PRIVATE_KEY_FILE="/home/ec2-user/.ssh/akalohi-aws.pem"
@@ -30,27 +32,34 @@ transfer_to_worker_node() {
 declare -A seen_ts
 
 # Main loop: Watch for create/moved_to events
-inotifywait -m -e create -e moved_to --format '%w%f' "$WATCH_DIR" | while read -r filepath; do
+# -m: Monitor the directory forever
+# -e create: Watch for a 'create' event, when a file is created
+# -e moved_to: Watch for a 'moved' event, when a file is moved into the directory
+# --format '%w%f': Return the output of the file with fullpath
+# read -r filepath: Assign the fullpath of the found file to the filepath variable
+inotifywait -m -e create -e moved_to --format '%w%f' "$WATCH_DIR" | while read -r FILEPATH; do
+
   # Only act on .vmdk files
-  if [[ "$filepath" != *.vmdk ]]; then
+  if [[ "$FILEPATH" != *.vmdk ]]; then
     continue
   fi
 
   # Simple debounce: if seen this file very recently, skip
   now=$(date +%s)
-  last=${seen_ts["$filepath"]:-0}
+  last=${seen_ts["$FILEPATH"]:-0}
   if (( now - last < DELAY )); then
     continue
   fi
-  seen_ts["$filepath"]=$now
+  seen_ts["$FILEPATH"]=$now
 
   # Optional: wait a moment to ensure file is fully written
   sleep $DELAY
 
   # Double-check file still exists and is non-zero
-  if [[ -s "$filepath" ]]; then
-    transfer_to_worker_node "$filepath"
+  if [[ -s "$FILEPATH" ]]; then
+  # Copy the file over to the worker-node
+    transfer_to_worker_node "$FILEPATH"
   else
-    log "Skipping $filepath: file missing or empty after wait"
+    log "Skipping $FILEPATH: file missing or empty after wait"
   fi
 done
