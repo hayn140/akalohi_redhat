@@ -5,7 +5,7 @@
   ansible.builtin.debug:
     msg: "{{ item }}"
   loop:
-    - "{{ file_name }}"
+    - "{{ filename }}"
     - "{{ s3_bucket_name }}"
     - "{{ aws_region }}"
     - "{{ aws_access_key }}"
@@ -14,13 +14,13 @@
       
 - name: Starting Upload task from RHSAT02 to S3:Imports/
   ansible.builtin.debug:
-    msg: "Copying up {{ rhsat02_source_dir }}/{{ file_name }} from RHSAT02 to the {{ s3_bucket_name }} S3 Bucket at Imports/{{ file_name }}"
+    msg: "Copying up {{ rhsat02_source_dir }}/{{ filename }} from RHSAT02 to the {{ s3_bucket_name }} S3 Bucket at Imports/{{ filename }}"
 
 - name: Upload VMDK file to S3 at Imports Directory
   amazon.aws.s3_object:
     bucket: "{{ s3_bucket_name }}"
-    src: "{{ rhsat02_source_dir }}/{{ file_name }}"
-    object: "Imports/{{ file_name }}"
+    src: "{{ rhsat02_source_dir }}/{{ filename }}"
+    object: "Imports/{{ filename }}"
     mode: put
     region: "{{ aws_region }}"
     access_key: "{{ aws_access_key }}"
@@ -33,3 +33,9 @@
 - name: Debug
   ansible.builtin.debug:
     var: s3_upload_results
+
+- name: Delete the file after Upload 
+  ansible.builtin.file:
+    path: "{{ rhsat02_source_dir }}/{{ filename }}"
+    state: absent
+
