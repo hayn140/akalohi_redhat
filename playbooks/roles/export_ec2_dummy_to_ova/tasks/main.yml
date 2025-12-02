@@ -1,0 +1,42 @@
+---
+# tasks file for export_ec2_dummy_to_ova
+
+- name: Export EC2 Instance to OVA (Command Module Path)
+  ansible.builtin.command:
+    cmd: >
+      aws ec2 create-instance-export-task
+      --region "{{ aws_region }}"
+      --instance-id "{{ dummy_ec2_instance_id }}"
+      --target-environment vmware
+      --export-to-s3-task ContainerFormat=ova,DiskImageFormat=vmdk,S3Bucket="{{ s3_bucket_name }}",S3Prefix="Exports/ova/"
+      --no-verify-ssl
+      --query 'ExportTask.ExportTaskId' 
+      --output text
+  become: false
+  register: ova_export_filename
+
+- name: Set 'exported_image_id' and 'ova_full_pathname' variables (Command Module Path)
+  ansible.builtin.set_fact:
+    exported_image_id: "{{ ova_export_filename.stdout }}"
+    ova_full_pathname: "Exports/ova/{{ ova_export_filename.stdout }}.ova"
+
+# - name: Export EC2 Instance to OVA (Custom Ansible Module Path)
+#   ec2_export_ova:
+#     region: "{{ aws_region }}"
+#     instance_id: "{{ dummy_ec2_instance_id }}"
+#     target_environment: vmware
+#     container_format: ova
+#     disk_image_format: vmdk
+#     s3_bucket: "{{ s3_bucket_name }}" 
+#     s3_prefix: "Exports/ova/"
+#   become: false
+#   register: ova_export_filename
+
+# - name: Set 'exported_image_id' and 'ova_full_pathname' variables (Custom Ansible Module Path)
+#   ansible.builtin.set_fact:
+#     exported_image_id: "{{ ova_export_filename.export_task_id  }}"
+#     ova_full_pathname: "Exports/ova/{{ ova_export_filename.export_task_id  }}.ova"
+
+- name: Display exported OVA image filename
+  ansible.builtin.debug:
+    msg: "OVA Filename: {{ exported_image_id }}.ova"

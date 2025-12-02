@@ -1,0 +1,19 @@
+---
+# tasks file for logind_disable_ssh_timeout
+
+# change the pesky stig setting that kills ssh sessions
+- name: Modify STIG /etc/systemd/logind.conf setting to infinity so ssh session doesnt die.
+  ansible.builtin.replace:
+    path: /etc/systemd/logind.conf
+    regexp: '^StopIdleSessionSec=.*$'
+    replace: 'StopIdleSessionSec=infinity'
+
+# reload/restart the logind service
+- name: Restart systemd-logind for changes to take effect
+  ansible.builtin.systemd_service:
+    name: systemd-logind
+    daemon_reload: true
+    state: restarted
+    enabled: true
+
+

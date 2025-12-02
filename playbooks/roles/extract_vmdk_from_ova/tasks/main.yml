@@ -1,0 +1,48 @@
+---
+# tasks file for extract_vmdk_from_ova
+
+- name: Cleanup "{{ image_conversion_dir }}/image_conversion/" directory and its contents
+  ansible.builtin.file:
+    path: "{{ image_conversion_dir }}/image_conversion"
+    state: absent
+
+- name: Ensure "{{ image_conversion_dir }}/image_conversion/" Directory is created
+  ansible.builtin.file:
+    path: "{{ image_conversion_dir }}/image_conversion"
+    state: directory
+    owner: rh-ansible
+    group: domusers
+    mode: '0775'
+
+- name: GET OVA from S3 Bucket
+  amazon.aws.s3_object:
+    region: "{{ aws_region }}"
+    bucket: "{{ s3_bucket_name }}"
+    object: "{{ ova_full_pathname }}"
+    dest: "{{ image_conversion_dir }}/image_conversion/{{ exported_image_id }}.ova"
+    mode: get
+    access_key: "{{ aws_access_key }}"
+    secret_key: "{{ aws_secret_key }}"
+    session_token: "{{ aws_session_token }}"
+    validate_certs: false
+  become: false
+
+- name: Set 'path_to_ova' variable
+  ansible.builtin.set_fact:
+    path_to_ova: "{{ image_conversion_dir }}/image_conversion/{{ exported_image_id }}.ova"
+
+- name: Unarchive OVA TAR file
+  ansible.builtin.unarchive:
+    src: "{{ path_to_ova }}"
+    dest: "{{ image_conversion_dir }}/image_conversion/"
+    remote_src: yes
+
+- name: Find VMDK file in "{{ image_conversion_dir }}/image_conversion/" Directory
+  ansible.builtin.find:
+    paths: "{{ image_conversion_dir }}/image_conversion"
+    patterns: '*.vmdk'
+  register: vmdk_files
+
+- name: Set 'path_to_vmdk' variable
+  ansible.builtin.set_fact:
+    path_to_vmdk: "{{ vmdk_files.files[0].path }}"

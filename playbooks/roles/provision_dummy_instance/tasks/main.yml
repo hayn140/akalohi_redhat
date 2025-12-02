@@ -1,0 +1,9 @@
+---
+- name: Run packer_aws_pre Playbook
+  ansible.builtin.import_tasks: packer_aws_pre.yml
+
+- name: Run RHEL Hardening Playbooks
+  ansible.builtin.import_tasks: rhel_hardening.yml
+  
+- name: Run packer_aws_post Playbook
+  ansible.builtin.import_tasks: packer_aws_post.yml

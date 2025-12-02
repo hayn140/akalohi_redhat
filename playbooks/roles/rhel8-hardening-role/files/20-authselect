@@ -1,0 +1,4 @@
+[org/gnome/settings-daemon/peripherals/smartcard]
+
+# RHEL-08-020050: Initiate a session lock when a smartcard is removed
+removal-action='lock-screen'

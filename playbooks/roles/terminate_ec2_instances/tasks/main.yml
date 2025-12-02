@@ -1,20 +1,15 @@
 ---
 # tasks file for terminate_ec2_instances
 
-- name: Terminate vmdk EC2 Instance
+- name: Terminate Dummy Instance
   amazon.aws.ec2_instance:
-    instance_ids: "{{ vmdk_instance_id }}"
+    instance_ids: "{{ dummy_ec2_instance_id }}"
     region: "{{ aws_region }}"
     state: terminated
+    wait: true
     access_key: "{{ aws_access_key }}"
     secret_key: "{{ aws_secret_key }}"
-    wait: true
-
-- name: Terminate vhd EC2 Instance
-  amazon.aws.ec2_instance:
-    instance_ids: "{{ vhd_instance_id }}"
-    region: "{{ aws_region }}"
-    state: terminated
-    access_key: "{{ aws_access_key }}"
-    secret_key: "{{ aws_secret_key }}"
-    wait: true
+    session_token: "{{ aws_session_token }}"
+    validate_certs: false
+  become: false
+  when: dummy_ec2_instance_id is defined

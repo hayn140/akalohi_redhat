@@ -1,0 +1,12 @@
+---
+# tasks file for dnf_base_rpms
+
+- name: Install "{{ packages_install }}"
+  ansible.builtin.dnf:
+    name: "{{ packages_install }}"
+    state: present
+
+- name: Remove "{{ packages_remove }}"
+  ansible.builtin.dnf:
+    name: "{{ packages_remove }}"
+    state: absent

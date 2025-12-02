@@ -1,0 +1,14 @@
+---
+# tasks file for aws_prep
+
+- name: clean up other preparation artifacts
+  ansible.builtin.shell: |
+    rm -f /home/cloud-user/c2s-*.rpm
+
+- name: Delete logs which only have to do with AMI creation
+  ansible.builtin.shell: |
+    rm -f /var/log/kickstart/build.log; rm -f /var/log/kickstart/puppet.log
+
+- name: Shred creds
+  ansible.builtin.shell: |
+    shred -u /home/cloud-user/.aws/credentials; shred -u /home/cloud-user/.ssh/*.pem; shred -u /home/cloud-user/.ssh/*.crt; shred -u /home/cloud-user/.ssh/authorized_keys; shred -u /home/cloud-user/.*history; shred -u /root/.aws/credentials; shred -u /root/.ssh/*.pem; shred -u /root/.ssh/*.crt; shred -u /root/.ssh/authorized_keys; shred -u /root/.*history; history -c; history -w; history -c; history -w

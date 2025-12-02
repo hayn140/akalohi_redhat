@@ -1,0 +1,45 @@
+---
+# tasks file for transfer_vmdk_to_s3
+
+- name: "Starting VMDK transfer task to S3://{{ s3_bucket_name }}/Imports/"
+  ansible.builtin.debug:
+    msg: "Copying up {{ vmdk_source_dir }}/{{ filename }} to S3://{{ s3_bucket_name }}/Imports/"
+
+- name: Ensure all files have proper read permissions
+  ansible.builtin.file:
+    path: "{{ vmdk_source_dir }}/{{ filename }}"
+    mode: 0644
+
+- name: "Upload VMDK file to S3://{{ s3_bucket_name }}/Imports/ (ansible.builtin.command Module) (if RHEL8 Worker-Node)"
+  ansible.builtin.command:
+    cmd: >
+      aws s3 cp "{{ vmdk_source_dir }}/{{ filename }}"
+      "s3://{{ s3_bucket_name }}/Imports/{{ filename }}"
+      --region "{{ aws_region }}"
+      --no-verify-ssl
+  become: false
+  when: 
+  - ansible_distribution == 'RedHat'
+  - ansible_distribution_major_version == '8'
+
+- name: "Upload VMDK file to S3://{{ s3_bucket_name }}/Imports/ (amazon.aws.s3_object Module) (if RHEL9 Worker-Node)"
+  amazon.aws.s3_object:
+    bucket: "{{ s3_bucket_name }}"
+    src: "{{ vmdk_source_dir }}/{{ filename }}"
+    object: "Imports/{{ filename }}"
+    mode: put
+    region: "{{ aws_region }}"
+    access_key: "{{ aws_access_key }}"
+    secret_key: "{{ aws_secret_key }}"
+    session_token: "{{ aws_session_token }}"
+    validate_certs: false
+    overwrite: always
+  become: false
+  when: 
+  - ansible_distribution == 'RedHat'
+  - ansible_distribution_major_version == '9'
+
+- name: "Image Successfully Uploaded to S3://{{ s3_bucket_name }}/Imports/, Cleaning up {{ vmdk_source_dir }}"
+  ansible.builtin.file:
+    path: "{{ vmdk_source_dir }}/{{ filename }}"
+    state: absent

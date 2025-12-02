@@ -1,0 +1,18 @@
+---
+
+- name: RHEL 8 Hardening
+  ansible.builtin.import_role:
+    name: rhel8-hardening-role
+  when: 
+    - ansible_distribution == 'RedHat'
+    - ansible_distribution_major_version == '8'
+  tags: rhel8_hardening
+
+- name: RHEL 9 Hardening
+  ansible.builtin.import_role:
+    name: rhel9-hardening-role
+  # remote_user: cloud-user
+  when: 
+    - ansible_distribution == 'RedHat'
+    - ansible_distribution_major_version == '9'
+  tags: rhel9_hardening

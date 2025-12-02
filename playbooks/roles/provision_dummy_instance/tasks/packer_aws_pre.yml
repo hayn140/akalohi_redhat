@@ -1,0 +1,35 @@
+---
+
+# - name: Configure NSA CA bundle certificates
+#   ansible.builtin.import_role:
+#     name: configure_nsa_ca_bundle
+#   tags: nsa_ca_bundle
+
+# - name: Register server to sat ###Add correct satellite link command to defaults file in sat_register role
+#   ansible.builtin.import_role:
+#     name: sat_register
+#   tags: register
+
+- name: Disable STIG SSH Timeout Temporarily
+  ansible.builtin.import_role:
+    name: logind_disable_ssh_timeout
+  tags: disable_ssh_timeout
+
+- name: Update server to catch incremental patches
+  ansible.builtin.import_role:
+    name: dnf_update
+  tags: dnf_update
+
+- name: Create cloud-user if the user doesn't exist & set Temporary Password
+  ansible.builtin.user:
+    name: cloud-user
+    shell: /bin/bash
+    groups:
+      - adm
+      - wheel
+      - systemd-journal
+    append: true
+    comment: "cloud-user"
+    expires: -1
+    password: "{{ 'Changeplease$1235' | password_hash('sha512') }}"
+    state: present

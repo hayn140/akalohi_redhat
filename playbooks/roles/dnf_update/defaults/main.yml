@@ -1,0 +1,5 @@
+---
+# defaults file for dnf_update
+# 'null' will unset the release, we can also change it 
+# to something like '8.9', '9.3', etc.
+target_release: '8.9'

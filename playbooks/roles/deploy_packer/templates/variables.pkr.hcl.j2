@@ -1,0 +1,50 @@
+variable "aws_region" {
+  type    = string
+  default = "{{ aws_region | default('us-iso-east-1') }}"
+}
+
+variable "imported_ami_id" {
+  type = string
+  default = "{{ imported_ami_id }}"
+}
+
+variable "ec2_instance_type" {
+  type    = string
+  default = "{{ ec2_instance_type | default('t3.micro') }}"
+}
+
+variable "provisioned_ami_name" {
+  type = string
+  default = "{{ provisioned_image_name }}"
+}
+
+variable "associate_public_ip" {
+  type    = bool
+  default = {{ associate_public_ip | default(true) | lower }}
+}
+
+variable "ssh_timeout" {
+  type    = string
+  default = "{{ ssh_timeout | default('30m') }}"
+}
+
+variable "ec2_vpc_id" {
+  type = string
+  default = "{{ ec2_vpc_id | default('vpc-0ac8bc03e0de07fc6') }}"
+}
+
+variable "ec2_subnet_id" {
+  type = string
+  default = "{{ ec2_subnet_id | default('subnet-079193da9f506277b') }}"
+}
+
+variable "ssh_username" {
+  type    = string
+  default = "{{ ssh_username | default('cloud-user') }}"
+}
+
+variable "packer_playbook_path" {
+  type    = string
+  default = "{{ packer_build_dir }}/packer_playbooks/playbook.yml"
+}
+

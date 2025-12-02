@@ -1,0 +1,52 @@
+---
+
+- hosts: all
+  remote_user: rh-ansible
+  become: false
+  vars:
+    - provisioned_ami_id: aloha
+    - provisioned_image_name: kakahiaka
+    - s3_ova_full_pathname: e
+    - s3_vmdk_full_pathname: kuu
+    - s3_vhd_full_pathname: hoa
+    - s3_qcow2_full_pathname: pili
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
+    AWS_SECRET_ACCESS_KEY: "{{ aws_secret_key }}"
+    AWS_SESSION_TOKEN: "{{ aws_session_token }}"
+    AWS_DEFAULT_REGION: "{{ aws_region }}"
+    
+  tasks:
+
+  - name: Reveal Exported Variables from Lambda Function
+    ansible.builtin.debug:
+      msg: "{{ item }}"
+    loop:
+      - "{{ s3_key }}"
+      - "{{ s3_bucket_name }}"
+      - "{{ aws_region }}"
+      - "{{ image_type }}"
+      - "{{ aws_access_key }}"
+      - "{{ aws_secret_key }}"
+      - "{{ aws_session_token }}"
+      - "{{ image_name }}"
+
+  - name: Send E-mail Notification to shareholders of Image Completion
+    community.general.mail:
+      host: smtp.nsa.ic.gov
+      port: 25
+      from: RedHatHelp@nsa.ic.gov
+      to: "{{ notify_users }}"
+      subject: "The New Provisioned {{ provisioned_image_name }} is Now Available"
+      body: |
+        The following provisioned Image is now available in C2E:
+
+        AMI ID: {{ provisioned_ami_id }}
+        AMI NAME: {{ provisioned_image_name }}
+
+        Other Formats of the same image can be found at the following locations in the '{{ s3_bucket_name }}' S3 Bucket:
+
+        OVA: {{ s3_ova_full_pathname }}
+        VMDK: {{ s3_vmdk_full_pathname }}
+        VHD: {{ s3_vhd_full_pathname }}
+        QCOW2: {{ s3_qcow2_full_pathname }}

@@ -1,0 +1,26 @@
+---
+# tasks file for image_prep
+
+#  Temp commenting these out and renaming the actual file beacuse ansible hates empty task files...
+
+# - name: Mash specific prep
+#   ansible.builtin.import_tasks:
+#     file: mash_prep.yml
+#   when:
+#     - cloud_provider == 'mash'
+
+# - name: Vmware specific prep
+#   ansible.builtin.import_tasks:
+#     file: deploy_vmware.yml
+#   when:
+#     - cloud_provider == 'vmware'
+
+- name: Universal image prep
+  ansible.builtin.import_tasks:
+    file: universal_prep.yml
+
+- name: AWS specific prep
+  ansible.builtin.import_tasks:
+    file: aws_prep.yml
+
+

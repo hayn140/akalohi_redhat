@@ -1,0 +1,69 @@
+---
+# tasks file for upload_files_to_s3
+
+# This first task will set the name of the final provisioned images.
+# It will remove 'noscap' from the Image Name if it exists, since the final images from this playbook will be provisioned and hardened. 
+# We want to avoid confusing our customer; however, it's essential that this automated image build workflow starts with 'noscap' images sent up from Image builder. 
+# Our vmdk_transfer.service on RHSAT02 ensures that only files with filenames containing 'noscap' and ending in .vmdk are sent through this automated workflow.
+# Applying a scap profile causes complications with cloud-init.
+# The first regex '[-._]?noscap[-._]?' removes 'noscap' and any optional surrounding delimiters (-._) and replaces it with an underscore (_). 
+# The second regex '^[-._]' removes any leading delimiters (-._).
+# The third regex '[-._]$' removes any trailing delimiters (-._).
+- name: Set final 'provisioned_image_name' and Remove 'noscap' from Name if it Exists
+  ansible.builtin.set_fact:
+    # provisioned_image_name: "{{ image_name }}-{{ ansible_date_time.epoch }}"
+    # provisioned_image_name: "{{ image_name }}"
+    provisioned_image_name: "{{ image_name | regex_replace('[-._]?noscap[-._]?', '_') | regex_replace('^[-._]', '') | regex_replace('[-._]$', '') }}"
+  when: "'noscap' in image_name"
+
+- name: Ensure all files have proper read permissions
+  ansible.builtin.file:
+    path: "{{ item.local_source_file }}"
+    mode: 0644
+  loop:
+    - local_source_file: "{{ path_to_vmdk }}"
+    - local_source_file: "{{ path_to_vhd }}"  
+    - local_source_file: "{{ path_to_qcow2 }}"
+    - local_source_file: "{{ path_to_ova }}"
+
+- name: Put OVA, VMDK, VHD, & QCOW2 files into S3 Bucket
+  amazon.aws.s3_object:
+    bucket: "{{ s3_bucket_name }}"
+    src: "{{ item.local_source_file }}"
+    object: "{{ item.s3_destination_path }}"
+    mode: put
+    region: "{{ aws_region }}"
+    access_key: "{{ aws_access_key }}"
+    secret_key: "{{ aws_secret_key }}"
+    session_token: "{{ aws_session_token }}"
+    validate_certs: false
+  loop:
+    - local_source_file: "{{ path_to_vmdk }}"
+      s3_destination_path: "Exports/vmdk/{{ provisioned_image_name }}.vmdk"
+    - local_source_file: "{{ path_to_vhd }}"
+      s3_destination_path: "Exports/vhd/{{ provisioned_image_name }}.vhd"  
+    - local_source_file: "{{ path_to_qcow2 }}"
+      s3_destination_path: "Exports/qcow2/{{ provisioned_image_name }}.qcow2"
+    - local_source_file: "{{ path_to_ova }}"
+      s3_destination_path: "Exports/ova/{{ provisioned_image_name }}.ova"
+  become: false
+  register: s3_upload_results
+
+- name: Cleanup mis-named ova from S3 Bucket
+  amazon.aws.s3_object:
+    bucket: "{{ s3_bucket_name }}"
+    object: "{{ ova_full_pathname }}"
+    mode: delobj
+    region: "{{ aws_region }}"
+    access_key: "{{ aws_access_key }}"
+    secret_key: "{{ aws_secret_key }}"
+    session_token: "{{ aws_session_token }}"
+    validate_certs: false
+  become: false
+
+- name: Set S3 Export Image Pathname Variables 
+  ansible.builtin.set_fact:
+    s3_vmdk_full_pathname: "{{ s3_upload_results.results[0].invocation.module_args.object }}"
+    s3_vhd_full_pathname: "{{ s3_upload_results.results[1].invocation.module_args.object }}"
+    s3_qcow2_full_pathname: "{{ s3_upload_results.results[2].invocation.module_args.object }}"
+    s3_ova_full_pathname: "{{ s3_upload_results.results[3].invocation.module_args.object }}"

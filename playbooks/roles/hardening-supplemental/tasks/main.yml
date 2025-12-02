@@ -1,0 +1,170 @@
+---
+# tasks file for hardening-supplemental
+
+# These tasks are likely to be superceded by y4-devx work o problematic tasks have been disabled
+- name: Remove packages for security compliance
+  ansible.builtin.dnf:
+    name: "{{ packages_remove }}"
+    state: absent
+
+- name: Install packages for security compliance
+  ansible.builtin.dnf:
+    name: "{{ packages_install }}"
+    state: present
+
+# RHEL-08-020320
+- name: Remove accounts for compliance
+  ansible.builtin.user:
+    name: "{{ accounts_removed }}"
+    state: absent
+    remove: true
+  ignore_errors: true
+
+- name: Correct permissions on logs owned by root
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: root
+    group: root
+    mode: "0600"
+  loop:
+    - /var/log/cron
+
+#- name: Ensure proper permissions on host keys
+#  ansible.builtin.file:
+#    path: "{{ item }}"
+#    mode: "0400"
+#    owner: root
+#  loop:
+#    - /etc/ssh/ssh_host_ecdsa_key
+#    - /etc/ssh/ssh_host_ed25519_key
+#    - /etc/ssh/ssh_host_rsa_key
+
+# File does not exist
+# - name: Configure AIDE,verify ACL
+#   ansible.builtin.lineinfile:
+#     path: /etc/aide.conf
+#     state: present
+#     regexp: '^ALL = sha512+acl+xattr'
+#     line: 'ALL = sha512+acl+xattrs'
+
+# - name: Initialize Aide
+#   ansible.builtin.command: >
+#     aide --init
+
+# - name: Rename aide.db.gz
+#   ansible.builtin.command: >
+#     mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+#   ignore_errors: true
+
+# - name: Add potential crontab entry
+#   ansible.builtin.copy:
+#     dest: /etc/crontab
+#     content: '#0 1 * * 0 /sbin/aide --check'
+#     mode: "0640"
+
+# RHEL-08-040020
+- name: Disable webcam
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/blacklist.conf
+    content: 'blacklist uvcvideo'
+    owner: root
+    group: root
+    mode: "0644"
+
+# - name: Load auditing rules
+#   ansible.builtin.command: >
+#     augenrules --load
+
+- name: net.ipv4.conf.default.rp_filter set to 1
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.d/99-sysctl.conf
+    state: present
+    regexp: '^net.ipv4.conf.default.rp_filter'
+    line: 'net.ipv4.conf.default.rp_filter=1'
+
+- name: Net.ipv4.conf.default.secure_redirects value is 0.
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.d/99-sysctl.conf
+    state: present
+    regexp: '^net.ipv4.conf.default.rp_filter'
+    line: 'net.ipv4.conf.default.secure_redirects=0'
+
+- name: Net.ipv4.conf.default.log_martians is set to 1 
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.d/99-sysctl.conf
+    state: present
+    regexp: '^net.ipv4.conf.default.log_martians'
+    line: 'net.ipv4.conf.default.log_martians=1'
+
+- name: Load sysctl kernel parameters
+  ansible.builtin.command: >
+    sysctl -p
+  ignore_errors: true
+
+- name: Configure to use 256 bit keys for Cipher
+  ansible.builtin.blockinfile:
+    path: /etc/crypto-policies/policies/modules/DISABLE-CBC.pmod
+    create: true
+    mode: "0644"
+    block: |
+     tls_cipher = -AES-128-GCM -AES-128-CCM -AES-128-CTR -AES-128-CBC
+     cipher = -AES-128-GCM -AES-128-CCM -AES-128-CTR -AES-128-CBC
+     ssh_cipher = -AES-128-GCM -AES-128-CCM -AES-128-CTR -AES-128-CBC
+
+- name: Update crypto policy command
+  ansible.builtin.command: >
+    update-crypto-policies --set FIPS:DISABLE-CBC
+
+- name: Disable firewalld zone drifting
+  ansible.builtin.lineinfile:
+    path: /etc/firewalld/firewalld.conf
+    state: present
+    regexp: '^AllowZoneDrifting='
+    line: 'AllowZoneDrifting=no'
+
+# - name: Set drop as the default target
+#   command: >
+#     firewall-cmd --set-default-zone=drop
+
+- name: Reload firewalld
+  ansible.builtin.service:
+    name: firewalld
+    state: reloaded
+
+# - name: Disable firewalld
+#   ansible.builtin.service:
+#     name: firewalld
+#     state: stopped
+#     enabled: false
+
+- name: Stop and disable rpcbind.socket
+  ansible.builtin.service:
+    name: rpcbind.socket
+    state: stopped
+    enabled: false
+  ignore_errors: true
+
+- name: Set client to checkin to Satellite every 24 hours
+  ansible.builtin.lineinfile:
+    path: /etc/rhsm/rhsm.conf
+    regexp: '^certCheckInterval = '
+    line: 'certCheckInterval = 1440'
+    state: present
+
+- name: Modify sudoers for cloud-user
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers.d/90-cloud-init-users
+    regexp: '^#cloud-user ALL=(ALL) NOPASSWD:ALL'
+    line: 'cloud-user ALL=(ALL) NOPASSWD:ALL'
+
+- name: Start and enable usbguard service
+  ansible.builtin.service:
+    name: usbguard
+    state: started
+    enabled: true
+
+- name: Grub kernel options
+  ansible.builtin.lineinfile:
+    path: /etc/default/grub
+    regexp: '^GRUB_CMDLINE_LINUX="console=tty0 console=ttyS0,115200n8 no_timer_check net.ifnames=0 crashkernel=auto"'
+    line: 'GRUB_CMDLINE_LINUX="console=tty0 console=ttyS0,115200n8 no_timer_check net.ifnames=0 audit_backlog_limit=8192 audit=1 page_poison=1 slub_debug=P vsyscall=none pti=on crashkernel=auto"'

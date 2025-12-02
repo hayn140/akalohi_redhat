@@ -1,0 +1,4 @@
+[org/gnome/login-screen]
+
+# RHEL-08-020032: Disable user list at logon
+disable-user-list=true

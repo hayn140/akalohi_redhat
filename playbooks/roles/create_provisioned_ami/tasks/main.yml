@@ -1,0 +1,85 @@
+# tasks file for create_provisioned_ami
+
+- name: Import Provisioned VMDK into AWS as a Snapshot
+  ansible.builtin.command: >
+    aws ec2 import-snapshot
+    --description "import-provisioned-vmdk-snapshot-{{ ansible_date_time.epoch }}"
+    --region "{{ aws_region }}"
+    --no-verify-ssl
+    --role-name "{{ iam_role_name }}"
+    --disk-container "Format=VMDK,UserBucket={S3Bucket={{ s3_bucket_name }},S3Key={{ s3_vmdk_full_pathname }}}"
+    --query 'ImportTaskId'
+    --output text
+  become: false
+  register: import_provisioned_snapshot_result
+
+- name: Assign 'import_provisioned_snapshot_task_id' Variable
+  ansible.builtin.set_fact:
+    import_provisioned_snapshot_task_id: "{{ import_provisioned_snapshot_result.stdout }}"
+
+- name: Reveal 'import_provisioned_snapshot_task_id' Variable
+  ansible.builtin.debug:
+    msg: "Import Provisioned Snapshot Task ID: {{ import_provisioned_snapshot_task_id }}"
+
+- name: Wait 60 minutes & check every 30 Seconds for Snapshot Import to Complete
+  ansible.builtin.command:
+    cmd: >
+      aws ec2 describe-import-snapshot-tasks 
+      --import-task-id "{{ import_provisioned_snapshot_task_id }}"
+      --no-verify-ssl
+      --query 'ImportSnapshotTasks[0].SnapshotTaskDetail.Status' 
+      --output text
+  register: imported_provisioned_snapshot_status
+  until: imported_provisioned_snapshot_status.stdout == 'completed'
+  retries: 120
+  delay: 30
+  become: false
+
+- name: Retrieve Provisioned Snapshot ID
+  ansible.builtin.command:
+    cmd: >
+      aws ec2 describe-import-snapshot-tasks 
+      --import-task-ids "{{ import_provisioned_snapshot_task_id }}"
+      --no-verify-ssl
+      --query 'ImportSnapshotTasks[0].SnapshotTaskDetail.SnapshotId'
+      --output text
+  become: false
+  register: imported_provisioned_snapshot_info
+
+- name: Set 'imported_provisioned_snapshot_id'
+  ansible.builtin.set_fact:
+    imported_provisioned_snapshot_id: "{{ imported_provisioned_snapshot_info.stdout }}"
+
+- name: Reveal 'imported_provisioned_snapshot_id' Variable 
+  ansible.builtin.debug:
+      var: imported_provisioned_snapshot_id
+      
+- name: Register Provisioned Snapshot as an AMI
+  amazon.aws.ec2_ami:
+    state: present
+    region: "{{ aws_region }}"
+    name: "{{ provisioned_image_name }}"
+    tags:
+      Name: "{{ provisioned_image_name }}"
+    virtualization_type: hvm
+    root_device_name: /dev/sda1
+    enhanced_networking: true
+    device_mapping:
+      - device_name: /dev/sda1
+        snapshot_id: "{{ imported_provisioned_snapshot_id }}"
+        delete_on_termination: true
+        volume_type: gp3
+    access_key: "{{ aws_access_key }}"
+    secret_key: "{{ aws_secret_key }}"
+    session_token: "{{ aws_session_token }}"
+    validate_certs: false
+  become: false
+  register: imported_provisioned_ami_info
+
+- name: Set 'provisioned_ami_id' Variable
+  ansible.builtin.set_fact:
+    provisioned_ami_id: "{{ imported_provisioned_ami_info.image_id }}"
+
+- name: Reveal 'provisioned_ami_id' Variable
+  ansible.builtin.debug:
+    var: provisioned_ami_id

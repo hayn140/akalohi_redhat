@@ -1,0 +1,381 @@
+---
+
+#######################################################
+# MANUAL STIGS OR NOT APPLICABLE
+#######################################################
+# The following STIGs should either be completed manually or with an Ansible playbook/role that is customized for the target environment.
+# RHEL-08-010000 (CAT I): RHEL 8 must be a vendor-supported release; should never be an issue in the cloud
+# RHEL-08-010001 (CAT II): Install and enable the latest Trellix ENSLTP package (v1r14: Changed "McAfee" to "Trellix")
+# RHEL-08-010010 (CAT II): Apply vendor packaged system security patches and updates regularly (site-specific)
+# RHEL-08-010030 (CAT II): Configure encryption at rest (v1r14: N/A if encryption provided by hypervisor or disk storage array in virtualized environment)
+# RHEL-08-010090 (CAT II): Configure RHEL 8 for PKI-based authentication; obtain DoD root CA file from cyber.mil
+# RHEL-08-010100 (CAT II): Ensure every private key on the system have a passcode
+# RHEL-08-010400 (CAT II): Implement certificate status checking for multifactor authentication
+# RHEL-08-010600 (CAT II): Mount removable media devices with "nodev" option; cloud servers do not use removable media
+# RHEL-08-010610 (CAT II): Mount removable media devices with "noexec" option; cloud servers do not use removable media
+# RHEL-08-010620 (CAT II): Mount removable media devices with "nosuid" option; cloud servers do not use removable media
+# RHEL-08-010680 (CAT II): Require two or more nameservers in /etc/nsswitch.conf
+# RHEL-08-010690 (CAT II): Ensure user-defined PATH environment var only include allowable dirs
+# RHEL-08-010730 (CAT II): Change interactive user home dirs permissions
+# RHEL-08-010731 (CAT II): Change interactive user home dir files permissions
+# RHEL-08-010740 (CAT II): Change interactive user home dirs group permissions
+# RHEL-08-010741 (CAT II): Change interactive user home dir files group permissions
+# RHEL-08-010750 (CAT II): Ensure assigned home dirs exist
+# RHEL-08-010770 (CAT II): Change interactive user initialization files permissions
+# RHEL-08-020000 (CAT II): Temporary accounts must be provisioned with an expiration time of 72 hours or less; temporary accounts are not likely used
+# RHEL-08-020010 (CAT II): pam_faillock config; N/A for RHEL 8.2 or later
+# RHEL-08-020012 (CAT II): pam_faillock config; N/A for RHEL 8.2 or later
+# RHEL-08-020014 (CAT II): pam_faillock config; N/A for RHEL 8.2 or later
+# RHEL-08-020016 (CAT II): pam_faillock config; N/A for RHEL 8.2 or later
+# RHEL-08-020018 (CAT II): pam_faillock config; N/A for RHEL 8.2 or later
+# RHEL-08-020020 (CAT II): pam_faillock config; N/A for RHEL 8.2 or later
+# RHEL-08-020022 (CAT II): pam_faillock config; N/A for RHEL 8.2 or later
+# RHEL-08-020028 (CAT II): Configure non-default faillock tally directory for RHEL 8.1 or older (N/A)
+# RHEL-08-020090 (CAT II): Configure sssd.conf for PKI authentication
+# RHEL-08-020102 (CAT II): pwquality config; N/A for RHEL 8.4 or later
+# RHEL-08-020103 (CAT II): pwquality config; N/A for RHEL 8.4 or later
+# RHEL-08-020104 (CAT II): pwquality config; N/A for RHEL 8.4 or later
+# RHEL-08-020250 (CAT II): Configure PAM for PKI authentication (N/A if approved alternate MFA is used)
+# RHEL-08-020270 (CAT II): Temporary accounts must automatically expire within 72 hours; temporary accounts are not likely used
+# RHEL-08-020290 (CAT II): Configure sssd.conf for PKI authentication (N/A if approved alternate MFA is used)
+# RHEL-08-020352 (CAT II): Remove umask statement from all local interactive user's initialization files
+# RHEL-08-030660 (CAT II): Store at least one week of audit records when records are not immediately sent to remote server; varies by system
+# RHEL-08-030710 (CAT II): Encrypt the transfer of audit records to a different system or storage media; requires unique certificates
+# RHEL-08-030720 (CAT II): Authenticate the remote logging server for off-loading audit logs; requires unique certificates
+# RHEL-08-030740 (CAT II): Set maxpoll to 16 in /etc/chrony.conf
+# RHEL-08-040030 (CAT II): Configure firewalld to prohibit/restrict use of functions, ports, protocols, and/or services as defined in the PPSM CAL and vulnerability assessments
+# RHEL-08-040090 (CAT II): Configure firewalld to employ a deny-all, allow-by-exception policy for allowing connections to other systems
+# RHEL-08-040101 (CAT II): A firewall must be active (firewalld)
+# RHEL-08-040136 (CAT II): fapolicy module must be enabled; requires extensive custom configuration
+# RHEL-08-040137 (CAT II): fapolicy module must be configured to employ a deny-all, permit-by-exception policy; requires extensive custom configuration
+# RHEL-08-040140 (CAT II): Install/configure USBGuard (not common in cloud environments)
+# RHEL-08-040400 (CAT II): Prevent non-privileged users from executing privileged functions (semanage login) (v1r14: If required, enable "ssh_sysadm_login" SELinux boolean and document with ISSO)
+# RHEL-08-030603 (CAT III): Enable Linux audit logging for the USBGuard daemon (not common in cloud environments)
+# RHEL_08_010471 (CAT III): Start and enable rngd service (v1r14: N/A for RHEL 8.4 or later running in FIPS mode)
+
+
+#######################################################
+# ROLE LOGGING
+#######################################################
+# Log file to store findings for STIGs that require manual administrator action.
+log_file: /tmp/rhel8-disa-stig-role.log
+# Initialize log variable to store STIG findings.
+log_var: [] # The brackets define this variable as a list type.
+
+
+#######################################################
+# DISA CAT I STIGS
+#######################################################
+rhel_08_010020: true # Enable fips (requires reboot)
+rhel_08_010121: true # System accounts must not have accounts with blank or null passwords
+set_grub_superuser: false # Create unique grub superuser with password (RHEL-08-010140, RHEL-08-010141, RHEL-08-010149, & RHEL-08-010150) (must not match system account)
+grub_superuser: "root" # GRUB superuser name
+rhel_08_010370: true # Enforce signature verification of packages from repos (gpgcheck=1)
+rhel_08_010371: true # Enforce signature verification of packages installed locally (localpkg_gpgcheck=1)
+rhel_08_010460: true # Remove any shosts.equiv files on the system
+rhel_08_010470: true # Remove any shosts files on the system
+rhel_08_010820: true # Prevent unattended or automatic login to system via graphical user interface
+rhel_08_020330: true # Prevent account login with empty password (ssh)
+rhel_08_040000: true # Remove telnet-server package
+rhel_08_040010: true # Remove rsh-server package
+rhel_08_040190: true # Remove tftp-server package
+rhel_08_040360: true # Remove vsftpd package
+rhel_08_040170: true # Mask ctrl-alt-del.target
+rhel_08_040171: true # Prevent ctrl-alt-del.target in GUI environments
+rhel_08_040172: true # Prevent Ctrl-Alt-Delete burst key sequence (systemd)
+rhel_08_040200: true # Check for duplicate UID "0" assignments
+
+
+#######################################################
+# PAM STIGS
+#######################################################
+# This task deploys fully STIGed pam.d files (password-auth-local, system-auth-local, & postlogin-local). This assumes that the system is RHEL 8.4 or newer.
+# It satisfies CAT I's RHEL-08-020331 & RHEL-08-020332.
+# It satisfies CAT II's RHEL-08-010159, RHEL-08-010160, RHEL-08-020025, RHEL-08-020026, RHEL-08-020100, RHEL-08-020101, RHEL-08-020220, & RHEL-08-020221.
+# It satisfies CAT III RHEL-08-020340.
+pam_stig_files: true
+# This task STIGs settings in /etc/security/faillock.conf.
+# Satisfies CAT II's RHEL-08-020011, RHEL-08-020013, RHEL-08-020015, RHEL-08-020017, RHEL-08-020021, & RHEL-08-020023.
+pam_faillock: true
+
+
+#######################################################
+# AUDIT RULES STIGS
+#######################################################
+# This task removes any existing audit rules and replaces them with fully STIG'ed audit rule files (01-audit.rules & 99-finalize.rules).
+# It satisfies a large amount of STIGs.
+audit_rules: true
+
+
+#######################################################
+# DISA CAT II STIGS
+#######################################################
+rhel_08_010019: true # Confirm package-signing keys are installed and fingerprints match vendor values
+rhel_08_010040: true # Display DoD Notice and Consent Banner (ssh)
+rhel_08_010049: true # Display DoD Notice and Consent Banner (GUI)
+rhel_08_010050: true # Display DoD Notice and Consent Banner (GUI)
+rhel_08_010060: true # Display DoD Notice and Consent Banner (ssh)
+rhel_08_010070: true # Monitor remote access methods (rsyslog)
+rhel_08_010110: true # Configure FIPS 140-2 approved cryptographic hashing algorithm for all stored passwords (login.defs)
+rhel_08_010120: true # Lock interactive user accounts that do not use SHA-512 password hash
+rhel_08_010130: true # Configure shadow password suite to use sufficient number of hashing rounds (login.defs)
+rhel_08_010149: true # Set unique grub superuser name (must not match system account)
+rhel_08_010151: true # Require authentication upon booting into rescue mode
+rhel_08_010152: true # Require authentication upon booting into emergency mode
+rhel_08_010161: true # Prevent system daemons from using Kerberos for authentication
+rhel_08_010163: true # Remove krb5-server package (only if not newer than v1.17-18)
+rhel_08_010170: true # Set SELinux to "enforcing" and policy to "targeted" (reboot required) (also satisfies RHEL-08-010450)
+rhel_08_010190: true # Configure all world-writable directories with sticky bit
+rhel_08_010200: true # Terminate user session after SSH client becomes unresponsive (ssh) (v1r14: Requires RHEL-08-010201)
+rhel_08_010201: true # Terminate SSH connections after 10 minutes of inactivity (ssh)
+rhel_08_010210: true # /var/log/messages must have mode 0640 or less permissive
+rhel_08_010220: true # /var/log/messages must be owned by root
+rhel_08_010230: true # /var/log/messages must be group owned by root
+rhel_08_010240: true # /var/log directory must have mode 0755 or less permissive
+rhel_08_010250: true # /var/log directory must be owned by root
+rhel_08_010260: true # /var/log directory must be group owned by root
+ssh_crypto_policy: true #Configure SSH FIPS MACs, Ciphers, & KexAlgorithms; requires reboot; Satisfies CAT II's RHEL-08-010290, RHEL-08-010291, & RHEL-08-040342 (v1r14: Updated algorithms)
+rhel_08_010287: true # Enforce use of system-wide crypto policies; requires reboot
+rhel_08_010293: true # Implement DoD-approved encryption in the OpenSSL package
+rhel_08_010294: true # Enforce TLSv1.2; requires reboot
+rhel_08_010295: true # Implement TLS encryption in GnuTLS package; requires reboot
+rhel_08_010300: true # System commands must have mode 755 or less permissive
+rhel_08_010310: true # System commands must be owned by root
+rhel_08_010320: true # System commands must be group owned by root
+rhel_08_010330: true # Library files must have mode 755 or less permissive
+rhel_08_010331: true # Library directories must have mode 755 or less permissive
+rhel_08_010340: true # Library files must be owned by root
+rhel_08_010341: true # Library directories must be owned by root
+rhel_08_010350: true # Library files must be group owned by root
+rhel_08_010351: true # Library directories must be group owned by root
+rhel_08_010358: true # Install mailx
+rhel_08_010359: true # Install aide
+aide_email: "root@localhost" # IMPORTANT! Change to a valid external email address to send aide reports to
+rhel_08_010360: true # Configure aide cronjob
+rhel_08_010372: true # Prevent loading of new kernel for later execution (sysctl)
+rhel_08_010373: true # Enable DAC on symlinks (sysctl)
+rhel_08_010374: true # Enforce DAC on hardlinks (sysctl)
+rhel_08_010379: false # Remove any nested sudoers configurations
+rhel_08_010380: false # Replace all instances of "NOPASSWD" in /etc/sudoers and /etc/sudoers.d/
+rhel_08_010381: true # Prevent disabling of reauthentication for privilege escalation (sudoers)
+rhel_08_010382: true # Restrict privilege escalation to authorized personnel (sudoers)
+rhel_08_010383: true # Force user password verification when using sudo
+rhel_08_010384: true # Force reauthentication when using sudo
+rhel_08_010385: true # Require password for privileged escalation (/etc/pam.d/sudo)
+rhel_08_010390: true # Ensure openssl-pkcs11 package is installed
+rhel_08_010410: true # Accept Personal Identity Verification (PIV) credentials (opensc)
+rhel_08_010420: true # Implement non-executable data to protect memory from unauthorized code execution (BIOS)
+rhel_08_010421: true # Clear the page allocator to prevent use-after-free attacks (grub)
+rhel_08_010422: true # Disable virtual syscalls (grub)
+rhel_08_010423: true # Clear SLUB/SLAB objects to prevent use-after-free attacks (grub)
+rhel_08_010430: true # Implement ASLR (sysctl)
+rhel_08_010480: true # SSH public host key files must have mode 0644 or less (ssh)
+rhel_08_010490: true # SSH public host key files must have mode 0640 or less (ssh)
+rhel_08_010500: true # Enforce strict mode checking of home dir config files (ssh)
+rhel_08_010520: true # Do not allow authentication using known host's authentication (ssh)
+rhel_08_010521: true # Do not allow Kerberos authentication (ssh)
+rhel_08_010522: true # Do not allow GSSAPI authentication (ssh)
+rhel_08_010543: true # (INFO ONLY) Mount /tmp directory on separate filesystem/partition
+rhel_08_010544: true # (INFO ONLY) Mount /var/tmp directory on separate filesystem/partition
+rhel_08_010550: true # Do not allow direct root login through remote access via SSH
+rhel_08_010561: true # Ensure rsyslog is active and enabled
+rhel_08_010570: true # (INFO ONLY) Mount /home with the "nosuid" option
+rhel_08_010571: true # (INFO ONLY) Mount /boot with the "nonsuid" option (BIOS)
+rhel_08_010572: true # (INFO ONLY) Mount /boot/efi with the "nosuid" option (UEFI)
+rhel_08_010580: true # (INFO ONLY) Mount all non-device partitions with the "nodev" option
+rhel_08_010590: true # (INFO ONLY) Mount /home directory with the "noexec" option
+rhel_08_010630: true # (INFO ONLY) Mount NFS shares with the "noexec" option
+rhel_08_010640: true # (INFO ONLY) Mount NFS shares with the "nodev" option
+rhel_08_010650: true # (INFO ONLY) Mount NFS shares with the "nosuid" option
+rhel_08_010660: true # Initialization files must not execute world-writable programs
+rhel_08_010670: true # Disable kernel dumps (kdump)
+rhel_08_010671: true # Disable storing core dumps (sysctl)
+rhel_08_010672: true # Disable accessing, storing, and processing core dumps (systemd)
+rhel_08_010673: true # Disable core dumps for all users (limits.d)
+rhel_08_010674: true # Disable storing core dumps
+rhel_08_010675: true # Disable core dump backtraces
+rhel_08_010680: true # (INFO ONLY) Configure a minimum of two name servers for DNS resolution
+rhel_08_010700: true # (INFO ONLY) World-writable directories must be owned by root, sys, bin, or an application user
+rhel_08_010710: true # (INFO ONLY) World-writable directories must be group-owned by root, sys, bin, or an application user
+rhel_08_010720: true # (INFO ONLY) Local interactive users must have a home directory assigned in /etc/passwd
+rhel_08_010760: true # Ensure all local interactive users are assigned a home directory (login.defs)
+rhel_08_010780: true # Set ownership of unowned files and directories to root (log saved to /root/RHEL-080-010780.log)
+rhel_08_010790: true # Set group ownership of group unowned files and directories to root (log saved to /root/RHEL-080-010790.log)
+rhel_08_010800: true # (INFO ONLY) Mount /home directory on separate filesystem/partition
+rhel_08_010830: true # Prevent unattended or automatic login (SSH)
+rhel_08_020015: true # Lock accounts until released by an administrator
+rhel_08_020017: true # Ensure account lockouts persist
+rhel_08_020019: true # Prevent displaying messages when three unsuccessful logon attempts occur
+rhel_08_020027: true # Set SELinux rule for /var/log/faillock
+rhel_08_020030: true # Lock the screen when the screensaver activates (GUI)
+rhel_08_020031: true # Initiate a session lock when the screensaver activates (GUI)
+rhel_08_020032: true # Disable user list at logon (GUI)
+rhel_08_020035: true # Terminate idle user sessions (logind)
+rhel_08_020039: true # Install tmux
+tmux_config: true # Enable user session lock and 15 minute timeout (tmux) (Satisfies CAT II's RHEL-08-020040 & RHEL-08-020070)
+rhel_08_020041: false # Ensure session control is automatically started at shell initialization (tmux)
+rhel_08_020050: true # Initiate a session lock when a smartcard is removed (GUI)
+rhel_08_020060: true # Initiate a screensaver after a 15-minute period of inactivity (GUI)
+rhel_08_020080: true # Prevent users from overriding settings for graphical user interfaces (GUI)
+rhel_08_020081: true # Prevent users from overriding settings for graphical user interfaces (GUI)
+rhel_08_020082: true # Prevent users from overriding settings for graphical user interfaces (GUI)
+rhel_08_020104: true # Configure password complexity module for three retries (pwquality.conf)
+rhel_08_020110: true # Require at least one uppercase character in passwords (pwquality.conf)
+rhel_08_020120: true # Require at least one lowercase character in passwords (pwquality.conf)
+rhel_08_020130: true # Require at least one numeric character in passwords (pwquality.conf)
+rhel_08_020140: true # Limit the maximum number of repeating characters of the same class in passwords to four (pwquality.conf)
+rhel_08_020150: true # Limit the maximum number of repeating characters in passwords to three (pwquality.conf)
+rhel_08_020160: true # Require the change of at least four character classes in password changes (pwquality.conf)
+rhel_08_020170: true # Require the change of at least eight characters in password changes (pwquality.conf)
+rhel_08_020180: true # Passwords must have a 24 hours/1 day minimum lifetime restriction in /etc/shadow (exclude system accounts)
+rhel_08_020190: true # Ensure new users or password changes have a 24 hour/1 day minimum lifetime (login.defs)
+rhel_08_020200: true # Ensure user account passwords have a 60-day maximum lifetime (login.defs)
+rhel_08_020210: false # Existing passwords must be restricted to a 60-day maximum lifetime (exclude system accounts)
+rhel_08_020230: true # Enforce 15-character minimum passwords (pwquality.conf)
+rhel_08_020231: true # Enforce 15-character minimum passwords (login.defs)
+rhel_08_020240: true # (INFO ONLY) Duplicate User IDs (UIDs) must not exist for interactive users
+rhel_08_020260: true # Account identifiers (individuals, groups, roles, & devices) must be disabled after 35 days of inactivity
+rhel_08_020280: true # Require at least one special character in passwords (pwquality.conf)
+rhel_08_020300: true # Prevent the use of dictionary words in passwords (pwquality.conf)
+rhel_08_020310: true # Enforce delay of at least four seconds between logon prompts following a failed attempt (login.defs)
+rhel_08_020320: true # Remove unnecessary accounts (games & gopher)
+rhel_08_020350: true # Display date and time of last successful SSH login (ssh)
+rhel_08_020351: true # Define default permissions for all authenticated users (login.defs)
+rhel_08_020353: true # Define default permissions for logon and non-logon shells (umask)
+rhel_08_030010: true # Implement cron logging (rsyslog)
+rhel_08_030020: true # SA and ISSO must be alerted of an audit processing failure event
+rhel_08_030030: true # SA and ISSO must have mail aliases to be notified of an audit processing failure
+rhel_08_030040: true # Configure auditd to log failure of the audit processing service
+rhel_08_030060: true # Set disk_full_action to HALT in /etc/audit/auditd.conf
+rhel_08_030061: true # Set local_events to yes in /etc/audit/auditd.conf
+rhel_08_030062: true # RHEL 8 must label all off-loaded audit logs before sending them to the central log server
+rhel_08_030070: true # /var/log/audit/audit.log must have mode 0600 or less permissive
+rhel_08_030080: true # /var/log/audit/audit.log must be owned by root
+rhel_08_030090: true # /var/log/audit/audit.log must be group-owned by root
+rhel_08_030100: true # /var/log/audit directory must be owned by root
+rhel_08_030110: true # /var/log/audit directory must be group-owned by root
+rhel_08_030120: true # /var/log/audit directory must have mode 0700 or less permissive
+rhel_08_030180: true # Ensure audit package is installed
+rhel_08_030181: true # auditd service must be active and enabled
+rhel_08_030620: true # Audit tools must have mode 0755 or less permissive
+rhel_08_030630: true # Audit tools must be owned by root
+rhel_08_030640: true # Audit tools must be group owned by root
+rhel_08_030650: true # Configure aide.conf (crypto mechanisms)
+rhel_08_030670: true # Ensure rsyslog package is installed
+rhel_08_030680: true # Ensure rsyslog-gnutls package is installed
+rhel_08_030690: true # (INFO ONLY) Audit records must be off-loaded to a different system or storage media
+rhel_08_030700: true # Configure auditd to log when the internal event queue is full
+rhel_08_030730: true # Configure auditd to trigger an action when record storage reaches 75 percent capacity
+rhel_08_030731: true # Configure auditd to notify the SA and ISSO when record storage reaches 75 percent capacity
+rhel_08_040001: true # Remove abrt packages
+rhel_08_040002: true # Remove sendmail package
+rhel_08_040020: true # Disable built-in or attached camera (modprobe.d)
+rhel_08_040070: true # Disable autofs unless required
+rhel_08_040080: true # Disable USB mass storage (modprobe.d)
+rhel_08_040100: true # Ensure firewalld package is installed
+rhel_08_040110: true # Disable all wireless network interfaces
+rhel_08_040111: true # Disable Bluetooth (modprobe.d) (requires reboot)
+rhel_08_040120: true # (INFO ONLY) Mount /dev/shm with the "nodev" option
+rhel_08_040121: true # (INFO ONLY) Mount /dev/shm with the "nosuid" option
+rhel_08_040122: true # (INFO ONLY) Mount /dev/shm with the "noexec" option
+rhel_08_040123: true # (INFO ONLY) Mount /tmp with the "nodev" option
+rhel_08_040124: true # (INFO ONLY) Mount /tmp with the "nosuid" option
+rhel_08_040125: true # (INFO ONLY) Mount /tmp with the "noexec" option
+rhel_08_040126: true # (INFO ONLY) Mount /var/log with the "nodev" option
+rhel_08_040127: true # (INFO ONLY) Mount /var/log with the "nosuid" option
+rhel_08_040128: true # (INFO ONLY) Mount /var/log with the "noexec" option
+rhel_08_040129: true # (INFO ONLY) Mount /var/log/audit with the "nodev" option
+rhel_08_040130: true # (INFO ONLY) Mount /var/log/audit with the "nosuid" option
+rhel_08_040131: true # (INFO ONLY) Mount /var/log/audit with the "noexec" option
+rhel_08_040132: true # (INFO ONLY) Mount /var/tmp with the "nodev" option
+rhel_08_040133: true # (INFO ONLY) Mount /var/tmp with the "nosuid" option
+rhel_08_040134: true # (INFO ONLY) Mount /var/tmp with the "noexec" option
+rhel_08_040135: true # Ensure fapolicyd package is installed
+rhel_08_040139: true # Ensure usbguard package is installed
+rhel_08_040140: true # Configure blocking of unauthorized peripherals (usbguard)
+rhel_08_040141: true # Ensure usbguard is active and enabled
+rhel_08_040150: true # Configure nftables as default firewalld backend (firewalld)
+rhel_08_040159: true # Ensure openssh-server is installed
+rhel_08_040160: true # Ensure SSH is loaded and active (ssh)
+rhel_08_040161: true # Configure SSH server to force frequent session key renegotiation (ssh)
+rhel_08_040180: true # Mask debug-shell.service
+rhel_08_040209: true # Reject IPv4 ICMP redirect messages (sysctl)
+rhel_08_040210: true # Reject IPv6 ICMP redirect messages (sysctl)
+rhel_08_040220: true # Do not send IPv4 ICMP redirect messages (sysctl)
+rhel_08_040230: true # Do not respond to ICMP echos sent to a broadcast address (sysctl)
+rhel_08_040239: true # Reject IPv4 source-routed packets (sysctl)
+rhel_08_040240: true # Do not forward IPv6 source-routed packets (sysctl)
+rhel_08_040249: true # Do not forward IPv4 source-routed packets by default (sysctl)
+rhel_08_040250: true # Do not forward IPv6 source-routed packets by default (sysctl)
+rhel_08_040259: true # Do not enable IPv4 forwarding unless system is a router (sysctl)
+rhel_08_040260: true # Do not enable IPv6 forwarding unless system is a router (sysctl)
+rhel_08_040261: true # Do not accept router advertisements on all IPv6 interfaces (syctl)
+rhel_08_040262: true # Do not accept router advertisements on all IPv6 interfaces by default (syctl)
+rhel_08_040270: true # Do not allow ICMP redirects by default (sysctl)
+rhel_08_040279: true # Ignore IPv4 ICMP redirect messages (sysctl)
+rhel_08_040280: true # Ignore IPv6 ICMP redirect messages (sysctl)
+rhel_08_040281: true # Disable access to network bpf syscall from unprivileged processes (sysctl)
+rhel_08_040282: true # Restrict usage of ptrace to descendant processes (sysctl)
+rhel_08_040283: true # Restrict exposed kernel pointer addresses accesses (sysctl)
+rhel_08_040284: true # Disable use of user namespaces (sysctl)
+rhel_08_040285: true # Use reverse path filtering on all IPv4 interfaces (sysctl)
+rhel_08_040286: true # Enable BPF JIT compiler hardening (sysctl)
+rhel_08_040290: true # Configure postfix to prevent unrestricted mail relaying
+rhel_08_040320: true # The graphical display manager must not be installed unless approved (log only)
+rhel_08_040321: true # The graphical display manager must not be the default target unless approved (log only)
+rhel_08_040330: true # Network interfaces must not be in promiscuous mode (log only)
+rhel_08_040340: true # Disable X11 forwarding (ssh)
+rhel_08_040341: true # Configure SSH daemon to prevent remote hosts from connecting to the proxy display (ssh)
+rhel_08_040350: true # Configure the TFTP daemon to operate in secure mode
+rhel_08_040370: true # Remove gssproxy package
+rhel_08_040380: true # Remove iprutils package
+rhel_08_040390: true # Remove tuned package
+rhel_08_010730: true #Change interactive user home dirs permissions
+rhel_08_030740: false #Set maxpoll to 16 in /etc/chrony.conf
+rhel_08_040090: true #Configure firewalld to employ a deny-all, allow-by-exception policy for allowing connections to other systems
+rhel_08_020102: true #pwquality config; N/A for RHEL 8.4 or later
+rhel_08_020220: true #Limit Password Reuse password-auth
+rhel_08_020090: true #Configure sssd.conf for PKI authentication
+rhel_08_020221: true #Limit Password Reuse password-auth
+rhel_08_020250: false #Configure PAM for PKI authentication (N/A if approved alternate MFA is used)
+rhel_08_040136: true #fapolicy module must be enabled; requires extensive custom configuration
+rhel_08_010770: true #Change interactive user initialization files permissions
+fstab_boot: true # RHEL 8 must prevent files with the setuid and setgid bit set from being executed on the /boot directory (RHEL-08-010571)
+fstab_boot_efi: true # RHEL 8 must prevent files with the setuid and setgid bit set from being executed on the /boot/efi directory (RHEL-08-010572)
+fstab_tmp: true # Mount /tmp with nodev, noexec, nosuid (RHEL-08-040123, RHEL-08-040124, RHEL-08-040125)
+fstab_var: true # RHEL 8 must prevent special devices on non-root local partitions (/var) (RHEL-08-010580)
+fstab_var_log: true # Mount /var/log with nodev, noexec, nosuid (RHEL-08-040126, RHEL-08-040127, RHEL-08-040128)
+fstab_var_log_audit: true # Mount /var/log/audit with nodev, noexec, nosuid (RHEL-08-040129, RHEL-08-040130, RHEL-08-040131)
+fstab_var_tmp: true # Mount /var/tmp with nodev, noexec, nosuid (RHEL-08-040132, RHEL-08-040133, RHEL-08-040134)
+fstab_home: true #  Mount /home with nosuid, nodev, noexec (RHEL-08-010570, RHEL-08-010580, RHEL-08-010590)
+fstab_dev_shm: true # Mount /dev/shm with nodev, nosuid, noexec (RHEL-08-040120, RHEL-08-040121, RHEL-08-040122)
+
+#######################################################
+# DISA CAT III STIGS
+#######################################################
+rhel_08_010171: true # Ensure policycoreutils package is installed
+rhel_08_010292: true # Enforce strong entropy (ssh)
+rhel_08_010375: true # Restrict access to kernel message buffer (sysctl)
+rhel_08_010376: true # Prevent kernel profiling by unprivileged users (sysctl)
+rhel_08_010440: true # Remove software components after updated versions installed
+rhel_08_010472: true # Ensure rng-tools package is installed
+rhel_08_010540: true # (INFO ONLY) Ensure "/var" is using a separate file system
+rhel_08_010541: true # (INFO ONLY) Ensure "/var/log" is using a separate file system
+rhel_08_010542: true # (INFO ONLY) Ensure "/var/log/audit" is using a separate file system
+rhel_08_020024: true # Limit the number of concurrent sessions to ten for all accounts/account types (limits.d)
+rhel_08_020042: true # Prevent users from disabling session control mechanisms (tmux)
+rhel_08_030063: true # Enable enriched logging (auditd)
+rhel_08_030601: true # Enable auditing (grub)
+rhel_08_030602: true # Configure audit backlog limit (grub)
+rhel_08_030603: true # Enable audit logging of USBGuard daemon; N/A if USBGuard is not installed
+rhel_08_030741: true # Disable the chrony daemon from acting as a server (v1r14: N/A if documented with ISSO to act as an NTP server)
+rhel_08_030742: true # Disable network management of the chrony daemon (v1r14: N/A if documented with ISSO to act as an NTP server)
+rhel_08_040004: true # Enable kernel page-table isolation (grub)
+rhel_08_040021: true # Disable the asynchronous transfer mode (ATM) protocol (modprobe.d) (requires reboot) 
+rhel_08_040022: true # Disable the controller area network (CAN) protocol (modprobe.d) (requires reboot)
+rhel_08_040023: true # Disable the stream control transmission (SCTP) protocol (modprobe.d) (requires reboot)
+rhel_08_040024: true # Disable the transparent inter-process communication (TIPC) protocol (modprobe.d) (requires reboot)
+rhel_08_040025: true # Disable mounting of cramfs (modprobe.d) (requires reboot)
+rhel_08_040026: true # Disable IEEE 1394 (FireWire) support (modprobe.d) (requires reboot)
+rhel_08_040300: true # Configure aide.conf (extended attributes)
+rhel_08_040310: true # Configure aide.conf (ACLs)

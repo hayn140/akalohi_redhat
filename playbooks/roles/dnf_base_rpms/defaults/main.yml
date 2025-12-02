@@ -1,0 +1,12 @@
+---
+# defaults file for dnf_base_rpms
+
+packages_install:
+  - vim
+  - dnf-plugins-core
+  - dnf-utils
+  - bash-completion
+  - cloud-init
+
+packages_remove:
+  - firefox

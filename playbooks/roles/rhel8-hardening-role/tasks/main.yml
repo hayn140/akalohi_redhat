@@ -1,0 +1,5539 @@
+---
+
+#######################################################
+# GATHER SYSTEM INFORMATION
+#######################################################
+- name: Gather list of installed packages
+  ansible.builtin.package_facts:
+    manager: auto
+  tags: cat_all,always
+
+- name: Determine if system uses BIOS
+  ansible.builtin.stat:
+    path: /boot/grub2/grub.cfg
+  register: is_bios
+  tags: cat_all,always
+
+- name: Determine if system uses EFI
+  ansible.builtin.stat:
+    path: /boot/efi/EFI/redhat/grub.cfg
+  register: is_efi
+  tags: cat_all,always
+
+# If either Xorg or Xwayland, or both, binaries exist, the system is techinically GUI-capable and GUI-related STIGs apply (credit: William Moulton)
+- name: Determine if system is GUI-capable
+  ansible.builtin.find:
+    paths: /usr/bin/
+    patterns: 'Xorg,Xwayland'
+  register: gui_capable
+  tags: cat_all,always
+
+
+#######################################################
+# DISA CAT I STIGS
+#######################################################
+# - name: Prompt User - Enable FIPS Mode (RHEL-08-010020)
+#   ansible.builtin.pause:
+#     prompt: "\n\nDo you want to enable FIPS mode. If not, you will need to configure this manually.\n\nType 'yes' or 'no' and hit 'ENTER'\n\n"
+#   register: enable_fips_response
+#   delegate_to: all
+#   run_once: true
+#   when:
+#   - rhel_08_010020 | bool
+#   tags: cat_all,cat1
+
+# - name: Set 'proceed_with_enable_fips' variable - (RHEL-08-010020)
+#   ansible.builtin.set_fact:
+#     proceed_with_enable_fips: "{{ enable_fips_response.user_input | lower == 'yes' }}"
+#   delegate_to: all
+#   run_once: true
+#   when:
+#   - enable_fips_response
+#   - rhel_08_010020 | bool
+#   tags: cat_all,cat1
+  
+- name: Get FIPS mode status (RHEL-08-010020)
+  ansible.builtin.command: cat /proc/sys/crypto/fips_enabled
+  register: fips_status
+  changed_when: false
+  when:
+  # - proceed_with_enable_fips
+  - rhel_08_010020 | bool
+  tags: cat_all,cat1
+
+- name: Enable FIPS (requires reboot; automatically adds fips=1 to grub) (RHEL-08-010020)
+  ansible.builtin.command: fips-mode-setup --enable
+  when:
+  # - proceed_with_enable_fips
+  - rhel_08_010020 | bool
+  - fips_status.stdout != '1'
+  tags: cat_all,cat1
+
+- name: Determine if any accounts have blank passwords (RHEL-08-010121)
+  ansible.builtin.shell: awk -F':' '!$2 {print $1}' /etc/shadow
+  ignore_errors: true
+  failed_when: false
+  changed_when: false
+  register: empty_passwords
+  when:
+  - rhel_08_010121 | bool
+  tags: cat_all,cat1
+
+- name: Lock accounts that have blank passwords (RHEL-08-010121)
+  ansible.builtin.user:
+    name: "{{ item }}"
+    password_lock: true
+  loop: "{{ empty_passwords.stdout_lines }}"
+  when:
+  - rhel_08_010121 | bool
+  tags: cat_all,cat1
+
+#######################################################
+# GRUB SUPERUSER CONFIGURATION
+#######################################################
+# The following tasks are interactive and will allow the user to create a unique GRUB superuser username and password.
+
+- name: Prompt User - Set Grub Super USERNAME & PASSWORD (RHEL-08-010141 & RHEL-08-010149)
+  ansible.builtin.pause:
+    prompt: "\n\nDo you want to set the Grub Super USERNAME & PASSWORD? If not, you will need to configure this manually.\n\nType 'yes' or 'no' and hit 'ENTER'\n\n"
+  register: set_grubuserpass_response
+  delegate_to: all
+  run_once: true
+  when:
+  - set_grub_superuser | bool
+  tags: cat_all,cat1
+
+- name: Set 'proceed_with_set_grubuserpass' variable - (RHEL-08-010141 & RHEL-08-010149)
+  ansible.builtin.set_fact:
+    proceed_with_set_grubuserpass: "{{ set_grubuserpass_response.user_input | lower == 'yes' }}"
+  delegate_to: all
+  run_once: true
+  when:
+  # - set_grubuserpass_response
+  - set_grub_superuser | bool
+  tags: cat_all,cat1
+
+- name: Enter and Confirm Unique Grub Superuser USERNAME (RHEL-08-010141 & RHEL-08-010149)
+  block:
+    - name: Prompt user for a Grub Superuser USERNAME
+      ansible.builtin.pause:
+        prompt: "\nPlease type a unique USERNAME you'd like to use for your Grub Superuser (Do not use 'root' or 'admin' or 'administrator') and hit ENTER"
+      register: grub_superuser_username
+    - name: Confirm Grub Superuser USERNAME
+      ansible.builtin.pause:
+        prompt: "\nPlease confirm your Grub Superuser USERNAME and hit ENTER.\nIf you made a mistake please restart this playbook."
+      register: grub_superuser_username_confirm
+      until: grub_superuser_username_confirm.user_input == grub_superuser_username.user_input
+      retries: 5
+      delay: 0
+  rescue:
+    - name: Proceed with Playbook
+      ansible.builtin.debug:
+        msg: "Usernames do not match after 5 attempts. Continuing with playbook WITHOUT setting a Unique Grub Superuser Username and Password. You will need to either rerun this playbook or configure the Grub Superuser manually."
+  delegate_to: all
+  run_once: true
+  when:
+  # - proceed_with_set_grubuserpass
+  - set_grub_superuser | bool
+  tags: cat_all,cat1
+
+- name: Create unique grub superuser USERNAME (BIOS) (RHEL-08-010149)
+  ansible.builtin.replace:
+    path: /etc/grub.d/01_users
+    regexp: 'set superusers=.*'
+    replace: 'set superusers="{{ grub_superuser_username.user_input }}"'
+  when:
+  # - proceed_with_set_grubuserpass
+  - set_grub_superuser | bool
+  - is_bios.stat.exists
+  # - grub_superuser_username_confirm.user_input == grub_superuser_username.user_input
+  tags: cat_all,cat1
+
+- name: Create unique grub superuser USERNAME (EFI) (RHEL-08-010141)
+  ansible.builtin.replace:
+    path: /etc/grub.d/01_users
+    regexp: 'set superusers=.*'
+    replace: 'set superusers="{{ grub_superuser_username.user_input }}"'
+  when:
+  # - proceed_with_set_grubuserpass
+  - set_grub_superuser | bool
+  - is_efi.stat.exists
+  # - grub_superuser_username_confirm.user_input == grub_superuser_username.user_input
+  tags: cat_all,cat1
+
+- name: Create unique grub superuser USERNAME (BIOS) (RHEL-08-010149)
+  ansible.builtin.replace:
+    path: /etc/grub.d/01_users
+    regexp: 'password_pbkdf2.*'
+    replace: 'password_pbkdf2 {{ grub_superuser_username.user_input }} \${GRUB2_PASSWORD}'
+  when:
+  # - proceed_with_set_grubuserpass
+  - set_grub_superuser | bool
+  - is_bios.stat.exists
+  # - grub_superuser_username_confirm.user_input == grub_superuser_username.user_input
+  tags: cat_all,cat1
+
+- name: Create unique grub superuser USERNAME (EFI) (RHEL-08-010141)
+  ansible.builtin.replace:
+    path: /etc/grub.d/01_users
+    regexp: 'password_pbkdf2.*'
+    replace: 'password_pbkdf2 {{ grub_superuser_username.user_input }} \${GRUB2_PASSWORD}'
+  when:
+  # - proceed_with_set_grubuserpass
+  - set_grub_superuser | bool
+  - is_efi.stat.exists
+  # - grub_superuser_username_confirm.user_input == grub_superuser_username.user_input
+  tags: cat_all,cat1
+
+- name: Regenerate grub.cfg file (BIOS) (RHEL-08-010141 & RHEL-08-010149)
+  ansible.builtin.command: grub2-mkconfig -o /boot/grub2/grub.cfg
+  when:
+  # - proceed_with_set_grubuserpass
+  - set_grub_superuser | bool
+  - is_bios.stat.exists
+  # - grub_superuser_username_confirm.user_input == grub_superuser_username.user_input  
+  tags: cat_all,cat1
+
+- name: Regenerate grub.cfg file (EFI) (RHEL-08-010141 & RHEL-08-010149)
+  ansible.builtin.command: grub2-mkconfig -o /boot/efi/EFI/redhat/grub.cfg
+  when:
+  # - proceed_with_set_grubuserpass
+  - set_grub_superuser | bool
+  - is_efi.stat.exists
+  # - grub_superuser_username_confirm.user_input == grub_superuser_username.user_input  
+  tags: cat_all,cat1
+
+- name: Enter and Confirm Grub Superuser PASSWORD (RHEL-08-010140 & RHEL-08-010150)
+  block:
+    - name: Prompt user for a Grub Superuser PASSWORD
+      ansible.builtin.pause:
+        prompt: "\nPlease type the PASSWORD you'd like to use for your Grub Superuser '{{ grub_superuser_username.user_input }}' and hit ENTER"
+        echo: false
+      register: grub_superuser_password
+      no_log: true    # Prevent passwords from showing in logs
+
+    - name: Confirm Grub Superuser PASSWORD
+      ansible.builtin.pause:
+        prompt: "\nPlease confirm your Grub Superuser PASSWORD and hit ENTER"
+        echo: false
+      register: grub_superuser_password_confirm
+      no_log: true    # Prevent passwords from showing in logs
+      until: grub_superuser_password_confirm.user_input == grub_superuser_password.user_input
+      retries: 5
+      delay: 0
+  rescue:
+    - name: Proceed with Playbook
+      ansible.builtin.debug:
+        msg: "Passwords do not match after 5 attempts. Continuing with playbook WITHOUT setting Grub Superuser password. You will need to either rerun this playbook or set it manually running the command: $sudo grub2-setpassword."
+  delegate_to: all
+  run_once: true
+  when:
+  # - proceed_with_set_grubuserpass
+  - set_grub_superuser | bool
+  # - grub_superuser_username_confirm.user_input == grub_superuser_username.user_input
+  tags: cat_all,cat1
+
+- name: Install python3-pexpect package to use ansible.builtin.expect module
+  ansible.builtin.dnf:
+    name: python3-pexpect
+    state: present
+  when: 
+  # - proceed_with_set_grubuserpass
+  - set_grub_superuser | bool
+  # - grub_superuser_username_confirm.user_input == grub_superuser_username.user_input
+  # - grub_superuser_password_confirm.user_input == grub_superuser_password.user_input
+  tags: cat_all,cat1
+
+- name: Set grub2 superuser password (RHEL-08-010140 & RHEL-08-010150)
+  ansible.builtin.expect:
+    command: grub2-setpassword
+    responses:
+      'Enter password:': "{{ grub_superuser_password.user_input }}"
+      'Confirm password:': "{{ grub_superuser_password.user_input }}"
+  no_log: true    # Prevent passwords from showing in logs
+  when:
+  # - proceed_with_set_grubuserpass
+  - set_grub_superuser | bool
+  # - grub_superuser_username_confirm.user_input == grub_superuser_username.user_input
+  # - grub_superuser_password_confirm.user_input == grub_superuser_password.user_input
+  tags: cat_all,cat1
+  
+- name: Gather list of software repo config files (RHEL-08-010370)
+  ansible.builtin.find:
+    paths: /etc/yum.repos.d/
+    patterns: '*.repo'
+    file_type: file
+  register: repos
+  when:
+  - rhel_08_010370 | bool
+  tags: cat_all,cat1
+
+- name: Enforce signature verification of packages from repos (gpgcheck=1) (RHEL-08-010370)
+  ansible.builtin.replace:
+    path: "{{ item.path }}"
+    backup: false
+    regexp: 'gpgcheck=0'
+    replace: 'gpgcheck=1'
+  with_items:
+  - "{{ repos.files }}"
+  when:
+  - rhel_08_010370 | bool
+  tags: cat_all,cat1
+
+- name: Enforce signature verification of packages installed locally (localpkg_gpgcheck=1) (RHEL-08-010371)
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/dnf.conf
+    regexp: '^localpkg_gpgcheck='
+    line: 'localpkg_gpgcheck=1'
+  when:
+  - rhel_08_010371 | bool
+  tags: cat_all,cat1
+
+- name: Search for any shosts.equiv files on the system (RHEL-08-010460)
+  ansible.builtin.find:
+    paths: /
+    patterns: 'shosts.equiv'
+    file_type: file
+    recurse: true
+  register: shosts_equiv
+  when:
+  - rhel_08_010460 | bool
+  tags: cat_all,cat1
+
+- name: Remove any shosts.equiv files on the system (RHEL-08-010460)
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  with_items:
+  - "{{ shosts_equiv.files }}"
+  when:
+  - rhel_08_010460 | bool
+  tags: cat_all,cat1
+
+- name: Search for any shosts files on the system (RHEL-08-010470)
+  ansible.builtin.find:
+    paths: /
+    patterns: '*.shosts'
+    file_type: file
+    recurse: true
+  register: shosts_files
+  when:
+  - rhel_08_010470 | bool
+  tags: cat_all,cat1
+
+- name: Remove any shosts files on the system (RHEL-08-010470)
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  with_items:
+  - "{{ shosts_files.files }}"
+  when:
+  - rhel_08_010470 | bool
+  tags: cat_all,cat1
+
+- name: Prevent unattended or automatic login to system via graphical user interface (RHEL-08-010820)
+  ansible.builtin.lineinfile:
+    path: /etc/gdm/custom.conf
+    regexp: '^AutomaticLoginEnable='
+    line: 'AutomaticLoginEnable=false'
+    insertafter: '\[daemon\]'
+    create: true
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: xdm_etc_t
+    selevel: s0
+  when:
+  - rhel_08_010820 | bool
+  - gui_capable.matched > 0 # Only run if Xorg* and/or Xwayland* file(s) found in /usr/bin/
+  tags: cat_all,cat1
+
+- name: Prevent account login with empty password (ssh) (RHEL-08-020330)
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^PermitEmptyPasswords'
+    line: 'PermitEmptyPasswords no'
+  when:
+  - rhel_08_020330 | bool
+  # notify:
+  # - restart_sshd
+  tags: cat_all,cat1
+
+- name: Remove telnet-server package (RHEL-08-040000)
+  ansible.builtin.dnf:
+    name: "telnet-server"
+    state: absent
+  when:
+  - rhel_08_040000 | bool
+  tags: cat_all,cat1
+
+- name: Remove rsh-server package (RHEL-08-040010)
+  ansible.builtin.dnf:
+    name: "rsh-server"
+    state: absent
+  when:
+  - rhel_08_040010 | bool
+  tags: cat_all,cat1
+
+- name: Remove tftp-server package (RHEL-08-040190)
+  ansible.builtin.dnf:
+    name: "tftp-server"
+    state: absent
+  when:
+  - rhel_08_040190 | bool
+  tags: cat_all,cat1
+
+- name: Remove vsftpd package (RHEL-08-040360)
+  ansible.builtin.dnf:
+    name: "vsftpd"
+    state: absent
+  when:
+  - rhel_08_040360 | bool
+  tags: cat_all,cat1
+
+- name: Mask ctrl-alt-del.target (RHEL-08-040170)
+  # NOTE! For some systems a mask Ansible systemd task will not work as a link may exist pointing ctrl-alt-del.target to reboot.target.
+  # Here, we manually perform the mask function.
+  ansible.builtin.file:
+    src: /dev/null
+    dest: /etc/systemd/system/ctrl-alt-del.target
+    state: link
+    force: true
+  ignore_errors: true
+  when:
+  - rhel_08_040170 | bool
+  notify:
+  - reload_systemd
+  tags: cat_all,cat1
+
+- name: Prevent ctrl-alt-del.target in GUI environments (RHEL-08-040171)
+  ansible.builtin.copy:
+    src: 00-disable-CAD
+    dest: /etc/dconf/db/local.d/00-disable-CAD
+    backup: false
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: etc_t
+    selevel: s0
+  when:
+  - rhel_08_040171 | bool
+  - gui_capable.matched > 0 # Only run if Xorg* and/or Xwayland* file(s) found in /usr/bin/
+  notify:
+  - dconf_update
+  tags: cat_all,cat1
+
+- name: Prevent Ctrl-Alt-Delete burst key sequence (systemd) (RHEL-08-040172)
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/system.conf
+    regexp: '^CtrlAltDelBurstAction'
+    line: 'CtrlAltDelBurstAction=none'
+  when:
+  - rhel_08_040172 | bool
+  notify:
+  - reload_systemd
+  tags: cat_all,cat1
+
+- name: Check for duplicate UID "0" assignments (RHEL-08-040200)
+  ansible.builtin.shell: awk -F':' '$3 == 0 {print $1}' /etc/passwd | grep -v root
+  ignore_errors: true
+  failed_when: false
+  changed_when: duplicate_uid_0.stdout != ""
+  register: duplicate_uid_0
+  when:
+  - rhel_08_040200 | bool
+  tags: cat_all,cat1
+
+- name: Log findings for RHEL-08-040200 to log file (RHEL-08-040200)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-040200 (CAT I): Multiple accounts found with UID 0: {{ duplicate_uid_0.stdout_lines }}'] }}"
+  when:
+  - duplicate_uid_0 is changed # Only run this task if there were accounts found
+  - rhel_08_040200 | bool
+  tags: cat_all,cat1
+
+
+#######################################################
+# PAM STIGS
+#######################################################
+- name: Deploy STIG password-auth-local (multiple STIGs)
+  ansible.builtin.copy:
+    src: password-auth-local
+    dest: /etc/pam.d/password-auth-local
+    backup: true
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: etc_t
+    selevel: s0
+  when:
+  - pam_stig_files | bool
+  notify:
+  - relink_password_auth
+  tags: cat_all,cat1,cat2,cat3
+
+- name: Deploy STIG system-auth-local (multiple STIGs)
+  ansible.builtin.copy:
+    src: system-auth-local
+    dest: /etc/pam.d/system-auth-local
+    backup: true
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: etc_t
+    selevel: s0
+  when:
+  - pam_stig_files | bool
+  notify:
+  - relink_system_auth
+  tags: cat_all,cat1,cat2,cat3
+
+- name: Deploy STIG postlogin-local (multiple STIGs)
+  ansible.builtin.copy:
+    src: postlogin-local
+    dest: /etc/pam.d/postlogin-local
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: etc_t
+    selevel: s0
+  when:
+  - pam_stig_files | bool
+  notify:
+  - relink_postlogin
+  tags: cat_all,cat1,cat2,cat3
+
+- name: Configure "deny = 3" in /etc/security/faillock.conf (RHEL-08-020011)
+  ansible.builtin.lineinfile:
+    path: /etc/security/faillock.conf
+    regexp: '^deny'
+    line: 'deny = 3'
+  when:
+  - pam_faillock | bool
+  tags: cat_all,cat2
+
+- name: Configure "fail_interval = 900" in /etc/security/faillock.conf (RHEL-08-020013)
+  ansible.builtin.lineinfile:
+    path: /etc/security/faillock.conf
+    regexp: '^fail_interval'
+    line: 'fail_interval = 900'
+  when:
+  - pam_faillock | bool
+  tags: cat_all,cat2
+
+- name: Configure "unlock_time = 0" in /etc/security/faillock.conf (RHEL-08-020015)
+  ansible.builtin.lineinfile:
+    path: /etc/security/faillock.conf
+    regexp: '^unlock_time'
+    line: 'unlock_time = 0'
+  when:
+  - pam_faillock | bool
+  tags: cat_all,cat2
+
+- name: Configure "dir = /var/log/faillock" in /etc/security/faillock.conf (RHEL-08-020017)
+  ansible.builtin.lineinfile:
+    path: /etc/security/faillock.conf
+    regexp: '^dir'
+    line: 'dir = /var/log/faillock'
+  when:
+  - pam_faillock | bool
+  tags: cat_all,cat2
+
+- name: Configure "audit" in /etc/security/faillock.conf (RHEL-08-020021)
+  ansible.builtin.lineinfile:
+    path: /etc/security/faillock.conf
+    regexp: '^audit'
+    line: 'audit'
+  when:
+  - pam_faillock | bool
+  tags: cat_all,cat2
+
+- name: Configure "even_deny_root" in /etc/security/faillock.conf (RHEL-08-020023)
+  ansible.builtin.lineinfile:
+    path: /etc/security/faillock.conf
+    regexp: '^even_deny_root'
+    line: 'even_deny_root'
+  when:
+  - pam_faillock | bool
+  tags: cat_all,cat2
+
+
+#######################################################
+# AUDIT RULES STIGS
+#######################################################
+- name: Removing existing audit rules
+  ansible.builtin.shell: rm -rf /etc/audit/rules.d/*
+  when:
+  - audit_rules | bool
+  tags: cat_all,always
+
+- name: Deploy 01-audit.rules
+  ansible.builtin.copy:
+    src: 01-audit.rules
+    dest: /etc/audit/rules.d/01-audit.rules
+    owner: root
+    group: root
+    seuser: system_u
+    serole: object_r
+    setype: auditd_etc_t
+    selevel: s0
+    mode: '0640'
+  when:
+  - audit_rules | bool
+  tags: cat_all,always
+
+- name: Deploy 99-finalize.rules
+  ansible.builtin.copy:
+    src: 99-finalize.rules
+    dest: /etc/audit/rules.d/99-finalize.rules
+    owner: root
+    group: root
+    seuser: system_u
+    serole: object_r
+    setype: auditd_etc_t
+    selevel: s0
+    mode: '0640'
+  when:
+  - audit_rules | bool
+  tags: cat_all,always
+
+- name: Set SELinux Contexts of /var/log/audit directory
+  ansible.builtin.command: restorecon -Fr /var/log/audit
+  when:
+  - audit_rules | bool
+  tags: cat_all,always
+
+- name: Stop auditd
+  ansible.builtin.command: service auditd stop
+  ignore_errors: true
+  when:
+  - audit_rules | bool
+  tags: cat_all,always
+
+- name: Start auditd
+  ansible.builtin.command: service auditd start
+  ignore_errors: true
+  when:
+  - audit_rules | bool
+  tags: cat_all,always
+
+
+#######################################################
+# DISA CAT II STIGS
+#######################################################
+- name: Confirm package-signing keys are installed and fingerprints match vendor values (RHEL-08-010019)
+  ansible.builtin.shell: gpg -q --keyid-format short --with-fingerprint /etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release
+  ignore_errors: true
+  register: gpg_key_fingerprints
+  failed_when: false
+  when:
+  - rhel_08_010019 | bool
+  tags: cat_all,cat2
+
+- name: Output RHEL-08-010019 results to log file (RHEL-08-010019)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010019 (CAT II): The following RHEL GPG keys are installed. Verify against published values at https://access.redhat.com/security/team/key.'] + gpg_key_fingerprints.stdout_lines }}"
+  when:
+  - rhel_08_010019 | bool
+  tags: cat_all,cat2
+
+- name: Display DoD Notice and Consent Banner (ssh) (RHEL-08-010040)
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^Banner'
+    line: 'Banner /etc/issue'
+  when:
+  - rhel_08_010040 | bool
+  # notify:
+  # - restart_sshd
+  tags: cat_all,cat2
+
+- name: Display DoD Notice and Consent Banner (GUI) (RHEL-08-010049 & RHEL-08-010050)
+  ansible.builtin.copy:
+    src: 01-banner-message
+    dest: /etc/dconf/db/local.d/01-banner-message
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: etc_t
+    selevel: s0
+  when:
+  - (rhel_08_010049 | bool) or (rhel_08_010050 | bool)
+  - gui_capable.matched > 0 # Only run if Xorg* and/or Xwayland* file(s) found in /usr/bin/
+  notify:
+  - dconf_update
+  tags: cat_all,cat2
+
+- name: Display DoD Notice and Consent Banner (ssh) (RHEL-08-010060)
+  ansible.builtin.copy:
+    src: issue
+    dest: /etc/issue
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: etc_t
+    selevel: s0
+  when:
+  - rhel_08_010060 | bool
+  tags: cat_all,cat2
+
+- name: Monitor remote access methods (rsyslog) (RHEL-08-010070)
+  ansible.builtin.lineinfile:
+    path: /etc/rsyslog.conf
+    regexp: '^auth.*;authpriv.*;daemon.*'
+    line: 'auth.*;authpriv.*;daemon.* /var/log/secure'
+  when:
+  - rhel_08_010070 | bool
+  notify:
+  - restart_rsyslog
+  tags: cat_all,cat2
+
+- name: Configure FIPS 140-2 approved cryptographic hashing algorithm for all stored passwords (login.defs) (RHEL-08-010110)
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^ENCRYPT_METHOD'
+    line: 'ENCRYPT_METHOD SHA512'
+  when:
+  - rhel_08_010110 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of users with weak password hashes in /etc/shadow (RHEL-08-010120)
+  # This awk command matches username to a password hash that does NOT begin with the 
+  # required "$6$", indicating SHA-512 hashing. It is then piped to a second awk command 
+  # to only store the username in the insecure_pw_user variable for later use.
+  ansible.builtin.shell: awk -F':' '{ print substr($2,1,3) " " $1 }' /etc/shadow | grep -v '^!' | grep -v '^*' | grep -v '^\$6\$' | awk  '{ print $2 }'
+  changed_when: false
+  register: insecure_pw_user
+  when:
+  - rhel_08_010120 | bool
+  tags: cat_all,cat2
+
+- name: Lock accounts with weak password hashes (RHEL-08-010120)
+  ansible.builtin.user:
+    name: "{{ item }}"
+    password_lock: true
+  loop: "{{ insecure_pw_user.stdout_lines }}"
+  when:
+  - rhel_08_010120 | bool
+  tags: cat_all,cat2
+
+- name: Configure shadow password suite to use sufficient number of hashing rounds (RHEL-08-010130)
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^SHA_CRYPT_MIN_ROUNDS'
+    line: 'SHA_CRYPT_MIN_ROUNDS 5000'
+  when:
+  - rhel_08_010130 | bool
+  tags: cat_all,cat2
+
+- name: Require authentication upon booting into rescue mode (RHEL-08-010151)
+  ansible.builtin.lineinfile:
+    path: /usr/lib/systemd/system/rescue.service
+    regexp: '^ExecStart='
+    line: 'ExecStart=-/usr/lib/systemd/systemd-sulogin-shell rescue'
+    insertafter: '\[Service\]' # Ensure line is added in [Service] section if not present
+  when:
+  - rhel_08_010151 | bool
+  tags: cat_all,cat2
+
+- name: Require authentication upon booting into emergency mode (RHEL-08-010152)
+  ansible.builtin.lineinfile:
+    path: /usr/lib/systemd/system/emergency.service
+    regexp: '^ExecStart='
+    line: 'ExecStart=-/usr/lib/systemd/systemd-sulogin-shell emergency'
+    insertafter: '\[Service\]' # Ensure line is added in [Service] section if not present
+  when:
+  - rhel_08_010152 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of .keytab files in /etc/ (RHEL-08-010161)
+  ansible.builtin.find:
+    paths: /etc/
+    patterns: '*.keytab'
+    file_type: file
+  register: keytab_files
+  when:
+  - rhel_08_010161 | bool
+  tags: cat_all,cat2
+
+- name: Prevent system daemons from using Kerberos for authentication (RHEL-08-010161)
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  with_items:
+  - "{{ keytab_files.files }}"
+  when:
+  - rhel_08_010161 | bool
+  - ("ansible_facts.packages['krb5-server'][0].version" < '1.17.18') # STIG not applicable if krb5-server is 1.17-18 or newer
+  tags: cat_all,cat2
+
+- name: Remove krb5-server package (only if not newer than v1.17-18) (RHEL-08-010163)
+  ansible.builtin.dnf:
+    name: "krb5-server < 1.17-18"
+    state: absent
+  when:
+  - rhel_08_010163 | bool
+  tags: cat_all,cat2
+
+- name: Set SELinux state to "enforcing" and policy to "targeted" (requires reboot) (RHEL-08-010170 & RHEL-08-010450)
+  ansible.builtin.lineinfile:
+    path: /etc/selinux/config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  with_items:
+  - { regexp: '^SELINUX=', line: 'SELINUX=enforcing' }
+  - { regexp: '^SELINUXTYPE=', line: 'SELINUXTYPE=targeted' }
+  when:
+  - rhel_08_010170 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of world-writable directories that do not have sticky bit set (RHEL-08-010190)
+  # Ansible recommends using the find module only for simple searches. We use shell for a more powerful search with the find command.
+  ansible.builtin.shell: 'find / -type d \( -perm -0002 -a ! -perm -1000 \) -print 2> /dev/null'
+  changed_when: false # Suppress output during task execution
+  failed_when: false # Find commands typically have non-zero return codes; prevent task failure
+  register: world_writable_dirs
+  when:
+  - rhel_08_010190 | bool
+  tags: cat_all,cat2
+
+- name: Configure all world-writable directories with sticky bit (RHEL-08-010190)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: '+t' # Add sticky bit without modifying other permissions
+  with_items:
+  - "{{ world_writable_dirs.stdout_lines }}"
+  when:
+  - rhel_08_010190 | bool
+  tags: cat_all,cat2
+
+- name: Terminate user session after SSH client becomes unresponsive (ssh) (RHEL-08-010200)
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^ClientAliveCountMax'
+    line: 'ClientAliveCountMax 1'
+  when:
+  - rhel_08_010200 | bool
+  # notify:
+  # - restart_sshd
+  tags: cat_all,cat2
+
+- name: Terminate SSH connections after 10 minutes of inactivity (ssh) (RHEL-08-010201)
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^ClientAliveInterval'
+    line: 'ClientAliveInterval 600'
+  when:
+  - rhel_08_010201 | bool
+  # notify:
+  # - restart_sshd
+  tags: cat_all,cat2
+
+- name: /var/log/messages must have mode 0640 or less permissive (RHEL-08-010210)
+  ansible.builtin.file:
+    path: /var/log/messages
+    mode: '0640'
+  when:
+  - rhel_08_010210 | bool
+  tags: cat_all,cat2
+
+- name: /var/log/messages must be owned by root (RHEL-08-010220)
+  ansible.builtin.file:
+    path: /var/log/messages
+    owner: root
+  when:
+  - rhel_08_010220 | bool
+  tags: cat_all,cat2
+
+- name: /var/log/messages must be group owned by root (RHEL-08-010230)
+  ansible.builtin.file:
+    path: /var/log/messages
+    group: root
+  when:
+  - rhel_08_010230 | bool
+  tags: cat_all,cat2
+
+- name: /var/log directory must have mode 0755 or less permissive (RHEL-08-010240)
+  ansible.builtin.file:
+    path: /var/log
+    mode: '0755'
+  when:
+  - rhel_08_010240 | bool
+  tags: cat_all,cat2
+
+- name: /var/log directory must be owned by root (RHEL-08-010250)
+  ansible.builtin.file:
+    path: /var/log
+    owner: root
+  when:
+  - rhel_08_010250 | bool
+  tags: cat_all,cat2
+
+- name: /var/log directory must be group owned by root (RHEL-08-010260)
+  ansible.builtin.file:
+    path: /var/log
+    group: root
+  when:
+  - rhel_08_010260 | bool
+  tags: cat_all,cat2
+
+- name: Configure SSH FIPS MACs, Ciphers, & KexAlgorithms (requires reboot) (RHEL-08-010290, RHEL-08-010291, & RHEL-08-040342)
+  ansible.builtin.copy:
+    src: opensshserver.txt
+    dest: /usr/share/crypto-policies/FIPS/opensshserver.txt
+    backup: true
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: usr_t
+    selevel: s0
+  when:
+  - ssh_crypto_policy | bool
+  notify:
+  - link_openssh_server
+  tags: cat_all,cat2
+
+- name: Enforce use of system-wide crypto policies (requires reboot) (RHEL-08-010287)
+  ansible.builtin.replace:
+      path: /etc/sysconfig/sshd
+      regexp: '^(CRYPTO_POLICY.*)' # This will match any line beginning with CRYPTO_POLICY, including any content
+      replace: '#\1' # This comments out all matching lines; the regexp much be enclosed in parenthesis for this to work
+  when:
+  - rhel_08_010287 | bool
+  tags: cat_all,cat2
+
+- name: Implement DoD-approved encryption in the OpenSSL package (RHEL-08-010293)
+  ansible.builtin.lineinfile:
+    path: /etc/pki/tls/openssl.cnf
+    regexp: '^.include /etc/crypto-policies/back-ends/opensslcnf.config'
+    line: '.include /etc/crypto-policies/back-ends/opensslcnf.config'
+    insertafter: '\[ crypto_policy \]' # We must escape the brackets for this to work properly
+  when:
+  - rhel_08_010293 | bool
+  tags: cat_all,cat2
+
+- name: Enforce TLSv1.2 (requires reboot) (RHEL-08-010294)
+  ansible.builtin.copy:
+    src: opensslcnf.txt
+    dest: /usr/share/crypto-policies/FIPS/opensslcnf.txt
+    backup: true
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: usr_t
+    selevel: s0
+  when:
+  - rhel_08_010294 | bool
+  notify:
+  - link_opensslcnf
+  tags: cat_all,cat2
+
+- name: Implement TLS encryption in GnuTLS package (requires reboot) (RHEL-08-010295)
+  ansible.builtin.copy:
+    src: gnutls.txt
+    dest: /usr/share/crypto-policies/FIPS/gnutls.txt
+    backup: true
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: usr_t
+    selevel: s0
+  when:
+  - rhel_08_010295 | bool
+  notify:
+  - link_gnutls
+  tags: cat_all,cat2
+
+- name: Gather list of system commands more permissive than 755 (RHEL-08-010300)
+  # Ansible recommends using the find module only for simple searches. We use shell for a more powerful search with the find command.
+  # "-not -xtype l" in the following find command will NOT include broken symlinks in the list of files found which would cause errors and the subsequent task would fail.
+  ansible.builtin.shell: 'find -L /bin /sbin /usr/bin /usr/sbin /usr/local/bin /usr/local/sbin -perm /022 -not -xtype l'
+  changed_when: false # Suppress output during task execution
+  failed_when: false # Find commands typically have non-zero return codes; prevent task failure
+  register: insecure_commands_perms
+  when:
+  - rhel_08_010300 | bool
+  tags: cat_all,cat2
+
+- name: System commands must have mode 755 or less permissive (RHEL-08-010300)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: '755'
+  with_items:
+  - "{{ insecure_commands_perms.stdout_lines }}"
+  when:
+  - rhel_08_010300 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of system commands not owned by root (RHEL-08-010310)
+  # Ansible recommends using the find module only for simple searches. We use shell for a more powerful search with the find command.
+  # "-not -xtype l" in the following find command will NOT include broken symlinks in the list of files found which would cause errors and the subsequent task would fail.
+  ansible.builtin.shell: 'find -L /bin /sbin /usr/bin /usr/sbin /usr/local/bin /usr/local/sbin -not -user root -not -xtype l'
+  changed_when: false # Suppress output during task execution
+  failed_when: false # Find commands typically have non-zero return codes; prevent task failure
+  register: insecure_commands_owner
+  when:
+  - rhel_08_010310 | bool
+  tags: cat_all,cat2
+
+- name: System commands must be owned by root (RHEL-08-010310)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: root
+  with_items:
+  - "{{ insecure_commands_owner.stdout_lines }}"
+  when:
+  - rhel_08_010310 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of system commands not group owned by root (RHEL-08-010320)
+  # Ansible recommends using the find module only for simple searches. We use shell for a more powerful search with the find command.
+  # "-not -xtype l" in the following find command will NOT include broken symlinks in the list of files found which would cause errors and the subsequent task would fail.
+  ansible.builtin.shell: 'find -L /bin /sbin /usr/bin /usr/sbin /usr/local/bin /usr/local/sbin -not -group root -not -xtype l'
+  changed_when: false # Suppress output during task execution
+  failed_when: false # Find commands typically have non-zero return codes; prevent task failure
+  register: insecure_commands_group
+  when:
+  - rhel_08_010320 | bool
+  tags: cat_all,cat2
+
+- name: System commands must be group owned by root (RHEL-08-010320)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    group: root
+  with_items:
+  - "{{ insecure_commands_group.stdout_lines }}"
+  when:
+  - rhel_08_010320 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of library files more permissive than 755 (RHEL-08-010330)
+  # Ansible recommends using the find module only for simple searches. We use shell for a more powerful search with the find command.
+  # "-not -xtype l" in the following find command will NOT include broken symlinks in the list of files found which would cause errors and the subsequent task would fail.
+  ansible.builtin.shell: 'find -L /lib /lib64 /usr/lib /usr/lib64 -perm /022 -type f -not -xtype l'
+  changed_when: false # Suppress output during task execution
+  failed_when: false # Find commands typically have non-zero return codes; prevent task failure
+  register: insecure_libraries_perms
+  when:
+  - rhel_08_010330 | bool
+  tags: cat_all,cat2
+
+- name: Library files must have mode 755 or less permissive (RHEL-08-010330)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: '755'
+  with_items:
+  - "{{ insecure_libraries_perms.stdout_lines }}"
+  when:
+  - rhel_08_010330 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of library directories more permissive than 755 (RHEL-08-010331)
+  # Ansible recommends using the find module only for simple searches. We use shell for a more powerful search with the find command.
+  # "-not -xtype l" in the following find command will NOT include broken symlinks in the list of files found which would cause errors and the subsequent task would fail.
+  ansible.builtin.shell: 'find /lib /lib64 /usr/lib /usr/lib64 -perm /022 -type d -not -xtype l'
+  changed_when: false # Suppress output during task execution
+  failed_when: false # Find commands typically have non-zero return codes; prevent task failure
+  register: insecure_libdirs_perms
+  when:
+  - rhel_08_010331 | bool
+  tags: cat_all,cat2
+
+- name: Library directories must have mode 755 or less permissive (RHEL-08-010331)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: '755'
+  with_items:
+  - "{{ insecure_libdirs_perms.stdout_lines }}"
+  when:
+  - rhel_08_010331 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of library files not owned by root (RHEL-08-010340)
+  # Ansible recommends using the find module only for simple searches. We use shell for a more powerful search with the find command.
+  # "-not -xtype l" in the following find command will NOT include broken symlinks in the list of files found which would cause errors and the subsequent task would fail.
+  ansible.builtin.shell: 'find -L /lib /lib64 /usr/lib /usr/lib64 -not -user root -type f -not -xtype l'
+  changed_when: false # Suppress output during task execution
+  failed_when: false # Find commands typically have non-zero return codes; prevent task failure
+  register: insecure_libraries_owner
+  when:
+  - rhel_08_010340 | bool
+  tags: cat_all,cat2
+
+- name: Library files must be owned by root (RHEL-08-010340)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: root
+  with_items:
+  - "{{ insecure_libraries_owner.stdout_lines }}"
+  when:
+  - rhel_08_010340 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of library directories not owned by root (RHEL-08-010341)
+  # Ansible recommends using the find module only for simple searches. We use shell for a more powerful search with the find command.
+  # "-not -xtype l" in the following find command will NOT include broken symlinks in the list of files found which would cause errors and the subsequent task would fail.
+  ansible.builtin.shell: 'find /lib /lib64 /usr/lib /usr/lib64 -not -user root -type d -not -xtype l'
+  changed_when: false # Suppress output during task execution
+  failed_when: false # Find commands typically have non-zero return codes; prevent task failure
+  register: insecure_libdirs_owner
+  when:
+  - rhel_08_010341 | bool
+  tags: cat_all,cat2
+
+- name: Library directories must be owned by root (RHEL-08-010341)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: root
+  with_items:
+  - "{{ insecure_libdirs_owner.stdout_lines }}"
+  when:
+  - rhel_08_010341 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of library files not group owned by root (RHEL-08-010350)
+  # Ansible recommends using the find module only for simple searches. We use shell for a more powerful search with the find command.
+  # "-not -xtype l" in the following find command will NOT include broken symlinks in the list of files found which would cause errors and the subsequent task would fail.
+  ansible.builtin.shell: 'find -L /lib /lib64 /usr/lib /usr/lib64 -not -group root -not -xtype l'
+  changed_when: false # Suppress output during task execution
+  failed_when: false # Find commands typically have non-zero return codes; prevent task failure
+  register: insecure_libraries_group
+  when:
+  - rhel_08_010350 | bool
+  tags: cat_all,cat2
+
+- name: Library files must be group owned by root (RHEL-08-010350)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    group: root
+  with_items:
+  - "{{ insecure_libraries_group.stdout_lines }}"
+  when:
+  - rhel_08_010350 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of library directories not group owned by root (RHEL-08-010351)
+  # Ansible recommends using the find module only for simple searches. We use shell for a more powerful search with the find command.
+  # "-not -xtype l" in the following find command will NOT include broken symlinks in the list of files found which would cause errors and the subsequent task would fail.
+  ansible.builtin.shell: 'find /lib /lib64 /usr/lib /usr/lib64 -not -group root -type d -not -xtype l'
+  changed_when: false # Suppress output during task execution
+  failed_when: false # Find commands typically have non-zero return codes; prevent task failure
+  register: insecure_libdirs_group
+  when:
+  - rhel_08_010351 | bool
+  tags: cat_all,cat2
+
+- name: Library directories must be group owned by root (RHEL-08-010351)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    group: root
+  with_items:
+  - "{{ insecure_libdirs_group.stdout_lines }}"
+  when:
+  - rhel_08_010351 | bool
+  tags: cat_all,cat2
+
+- name: Install mailx (RHEL-08-010358)
+  ansible.builtin.dnf:
+    name: "mailx"
+    state: installed
+  when:
+  - rhel_08_010358 | bool
+  tags: cat_all,cat2
+
+- name: Install aide (RHEL-08-010359)
+  ansible.builtin.dnf:
+    name: "aide"
+    state: installed
+  when:
+  - rhel_08_010359 | bool
+  notify:
+  - aide_init
+  tags: cat_all,cat2,always     # needed for aide_init handler
+
+- name: Configure aide cronjob (RHEL-08-010360)
+  ansible.builtin.blockinfile:
+    path: /etc/cron.daily/aide
+    insertbefore: BOF
+    block: |
+      #!/bin/bash
+      /usr/sbin/aide --check | /bin/mail -s "$HOSTNAME - Daily AIDE integrity check run" {{ aide_email }}
+    create: true
+    owner: root
+    group: root
+    mode: '0755'
+    seuser: system_u
+    serole: object_r
+    setype: bin_t
+    selevel: s0
+  when:
+  - rhel_08_010360 | bool   
+  tags: cat_all,cat2
+
+- name: Prevent loading of new kernel for later execution (sysctl) (RHEL-08-010372)
+  ansible.posix.sysctl:
+    name: kernel.kexec_load_disabled
+    value: '1'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_010372 | bool
+  tags: cat_all,cat2
+
+- name: Enable DAC on symlinks (sysctl) (RHEL-08-010373)
+  ansible.posix.sysctl:
+    name: fs.protected_symlinks
+    value: '1'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_010373 | bool
+  tags: cat_all,cat2
+
+- name: Enable DAC on hardlinks (sysctl) (RHEL-08-010374)
+  ansible.posix.sysctl:
+    name: fs.protected_hardlinks
+    value: '1'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_010374 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of any nested sudoers directory configurations (RHEL-08-010379)
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    regexp: '^#includedir.*$' # . = any character, * = any number of times, $ = end of line
+    state: absent # This is required for the module to complete; if we use state=present we'd have to add a "line:" statement as well
+  check_mode: true # Do not actually modify the file, we are gathering a list
+  changed_when: false # We aren't modifying the file
+  register: sudoers_includedir_count
+  when:
+  - rhel_08_010379 | bool
+  tags: cat_all,cat2
+
+- name: Remove all includedir lines if multiple are found (/etc/sudoers) (RHEL-08-010379)
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    regexp: '^#includedir.*$'
+    state: absent # Remove all lines beginning with "#includedir"; we add the correct line in a later task
+  when:
+  - rhel_08_010379 | bool
+  - sudoers_includedir_count.found > 1 # If more than one line is found, a noncompliant configuration exists
+  tags: cat_all,cat2
+
+- name: Ensure /etc/sudoers.d is only included directory in /etc/sudoers (RHEL-08-010379)
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    regexp: '^#includedir /etc/sudoers.d' # NOTE! The "#" does NOT mean this line is commented out in /etc/sudoers!
+    line: '#includedir /etc/sudoers.d'
+    state: present
+  when:
+  - rhel_08_010379 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of any nested sudoers file configurations (RHEL-08-010379)
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    regexp: '^#include\s*.*$' # \s* = any amount of whitespace (this means "#includedir" lines will not match, which is what we want)
+    state: absent # This is required for the module to complete; if we use state=present we'd have to add a "line:" statement as well
+  check_mode: true # Do not actually modify the file, we are gathering a list
+  changed_when: false # We aren't modifying the file
+  register: sudoers_includefile_count
+  when:
+  - rhel_08_010379 | bool
+  tags: cat_all,cat2
+
+- name: Remove all include lines if any are found (/etc/sudoers) (RHEL-08-010379)
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    regexp: '^#include\s*.*$'
+    state: absent # Remove all lines beginning with "#include"
+  when:
+  - rhel_08_010379 | bool
+  - sudoers_includefile_count.found > 0 # If any line is found, a noncompliant configuration exists
+  tags: cat_all,cat2
+
+- name: Gather list of files in /etc/sudoers.d/ (RHEL-08-010379)
+  ansible.builtin.find:
+    paths: /etc/sudoers.d/
+    file_type: file
+    follow: true
+  register: sudoers
+  when:
+  - rhel_08_010379 | bool
+  tags: cat_all,cat2
+
+- name: Remove all include lines if any are found (/etc/sudoers) (RHEL-08-010379)
+  ansible.builtin.lineinfile:
+    path: "{{ item.path }}"
+    regexp: '^#include(dir)?\s*.*$' # (dir)? = optional ending to "include"; this matches both "include" and "#includedir"
+    state: absent # Remove all lines beginning with "#include" and "#includedir"
+  with_items:
+  - "{{ sudoers.files }}"
+  when:
+  - rhel_08_010379 | bool
+  tags: cat_all,cat2
+
+- name: Replace all instances of "NOPASSWD" in /etc/sudoers (RHEL-08-010380)
+  ansible.builtin.replace:
+    path: /etc/sudoers
+    regexp: 'NOPASSWD:'
+    replace: ''
+  when:
+  - rhel_08_010380 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of files in /etc/sudoers.d/ (RHEL-08-010380)
+  ansible.builtin.find:
+    paths: /etc/sudoers.d/
+    file_type: file
+    follow: true
+  register: sudoers
+  when:
+  - rhel_08_010380 | bool
+  tags: cat_all,cat2
+
+- name: Replace all instances of "NOPASSWD" in etc/sudoers.d/ (RHEL-08-010380)
+  ansible.builtin.replace:
+    path: "{{ item.path }}"
+    regexp: 'NOPASSWD:'
+    replace: ''
+  with_items:
+  - "{{ sudoers.files }}"
+  when:
+  - rhel_08_010380 | bool
+  tags: cat_all,cat2
+
+- name: Prevent disabling of reauthentication for privilege escalation (sudoers) (RHEL-08-010381)
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    regexp: '^(?!#).*!authenticate.*$' # ^(?!#) = ignore lines that begin with "#"
+    state: absent # Remove all lines that contain "!authenticate"
+  when:
+  - rhel_08_010381 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of files in /etc/sudoers.d/ (RHEL-08-010381)
+  ansible.builtin.find:
+    paths: /etc/sudoers.d/
+    file_type: file
+    follow: true
+  register: sudoers
+  when:
+  - rhel_08_010381 | bool
+  tags: cat_all,cat2
+
+- name: Prevent disabling of reauthentication for privilege escalation (sudoers.d) (RHEL-08-010381)
+  ansible.builtin.lineinfile:
+    path: "{{ item.path }}"
+    regexp: '^(?!#).*!authenticate.*$' # ^(?!#) = ignore lines that begin with "#"
+    state: absent # Remove all lines that contain "!authenticate"
+  with_items:
+  - "{{ sudoers.files }}"
+  when:
+  - rhel_08_010381 | bool
+  tags: cat_all,cat2
+
+- name: Restrict privilege escalation to authorized personnel (sudoers) (RHEL-08-010382)
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    regexp: '^ALL\s*ALL.*$'
+    state: absent
+  when:
+  - rhel_08_010382 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of files in /etc/sudoers.d/ (RHEL-08-010382)
+  ansible.builtin.find:
+    paths: /etc/sudoers.d/
+    file_type: file
+    follow: true
+  register: sudoers
+  when:
+  - rhel_08_010382 | bool
+  tags: cat_all,cat2
+
+- name: Restrict privilege escalation to authorized personnel (sudoers.d) (RHEL-08-010382)
+  ansible.builtin.lineinfile:
+    path: "{{ item.path }}"
+    regexp: '^ALL\s*ALL.*$'
+    state: absent
+  with_items:
+  - "{{ sudoers.files }}"
+  when:
+  - rhel_08_010382 | bool
+  tags: cat_all,cat2
+
+- name: Force user password verification when using sudo (RHEL-08-010383)
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  with_items:
+  - { regexp: '^Defaults\s*!targetpw$', line: 'Defaults !targetpw' }
+  - { regexp: '^Defaults\s*!rootpw$', line: 'Defaults !rootpw' }
+  - { regexp: '^Defaults\s*!runaspw$', line: 'Defaults !runaspw' }
+  when:
+  - rhel_08_010383 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of files in /etc/sudoers.d/ (RHEL-08-010383)
+  ansible.builtin.find:
+    paths: /etc/sudoers.d/
+    file_type: file
+    follow: true
+  register: sudoers
+  when:
+  - rhel_08_010383 | bool
+  tags: cat_all,cat2
+
+- name: Remove overrides of password verification when using sudo in sudoers.d (RHEL-08-010383)
+  ansible.builtin.lineinfile:
+    path: "{{ item.path }}"
+    regexp: '^Defaults\s*!?(targetpw|rootpw|runaspw).*$' # The "!?" means zero or one instances of "!"
+    state: absent
+  with_items:
+  - "{{ sudoers.files }}"
+  when:
+  - rhel_08_010383 | bool
+  tags: cat_all,cat2
+
+- name: Force reauthentication when using sudo (RHEL-08-010384)
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    regexp: '^Defaults\s*timestamp_timeout=0.*$'
+    line: 'Defaults timestamp_timeout=0'
+  when:
+  - rhel_08_010384 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of files in /etc/sudoers.d/ (RHEL-08-010384)
+  ansible.builtin.find:
+    paths: /etc/sudoers.d/
+    file_type: file
+    follow: true
+  register: sudoers
+  when:
+  - rhel_08_010384 | bool
+  tags: cat_all,cat2
+
+- name: Remove overrides of reauthentication when using sudo in sudoers.d (RHEL-08-010384)
+  ansible.builtin.lineinfile:
+    path: "{{ item.path }}"
+    regexp: '^Defaults\s*timestamp_timeout.*$'
+    state: absent
+  with_items:
+  - "{{ sudoers.files }}"
+  when:
+  - rhel_08_010384 | bool
+  tags: cat_all,cat2
+
+- name: Require password for privileged escalation (/etc/pam.d/sudo) (RHEL-08-010385)
+  ansible.builtin.replace:
+    path: /etc/pam.d/sudo
+    regexp: '^(?!#)(.*pam_succeed_if.*)$' # ^(?!#) = ignore lines that begin with "#"
+    replace: '#\1' # This comments out all matching lines; the regexp much be enclosed in parenthesis for this to work
+  when:
+  - rhel_08_010385 | bool
+  tags: cat_all,cat2
+
+- name: Ensure openssl-pkcs11 package is installed (RHEL-08-010390)
+  ansible.builtin.dnf:
+    name: "openssl-pkcs11"
+    state: installed
+  when:
+  - rhel_08_010390 | bool
+  tags: cat_all,cat2
+
+- name: Accept Personal Identity Verification (PIV) credentials (opensc) (RHEL-08-010410)
+  ansible.builtin.dnf:
+    name: "opensc"
+    state: installed
+  when:
+  - rhel_08_010410 | bool
+  tags: cat_all,cat2
+
+- name: Implement non-executable data to protect memory from unauthorized code execution (BIOS) (RHEL-08-010420)
+  ansible.builtin.shell: dmesg | grep -e '^.*\sNX\s.*$'
+  register: nx_status
+  failed_when: false
+  changed_when: nx_status.rc != 0 
+  when:
+  - rhel_08_010420 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-010420 to log file (RHEL-08-010420)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010420 (CAT II): No evidence found that NX (Execute Disable) protection is active. This must be configured in BIOS.'] }}"
+  when:
+  - nx_status is changed
+  - rhel_08_010420 | bool
+  tags: cat_all,cat2
+
+- name: Install grubby if not installed (RHEL-08-010421, RHEL-08-010422, & RHEL-08-010423)
+  ansible.builtin.dnf:
+    name: "grubby"
+    state: installed
+  when:
+  - (rhel_08_010421 | bool) or (rhel_08_010422 | bool) or (rhel_08_010423 | bool)
+  tags: cat_all,cat2
+
+- name: Determine if "page_poison=1" exists in /etc/default/grub (RHEL-08-010421)
+  ansible.builtin.command: grep -c "page_poison=1" /etc/default/grub
+  ignore_errors: true
+  register: page_poison_default
+  failed_when: false
+  changed_when:
+  - page_poison_default.rc != 0
+  when:
+  - rhel_08_010421 | bool
+  tags: cat_all,cat2
+
+- name: Determine if "page_poison=1" exists in /etc/grub.d/ (RHEL-08-010421)
+  ansible.builtin.shell: grep -c "page_poison=1" /etc/grub.d/*
+  ignore_errors: true
+  register: page_poison_grubd
+  failed_when: false
+  changed_when:
+  - page_poison_grubd.rc != 0
+  when:
+  - rhel_08_010421 | bool
+  tags: cat_all,cat2
+
+- name: Clear the page allocator to prevent use-after-free attacks (grub) (RHEL-08-010421)
+  ansible.builtin.lineinfile:
+    path: /etc/grub.d/RHEL-08-010421
+    regexp: '^GRUB_CMDLINE_LINUX='
+    line: 'GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX page_poison=1"'
+    create: true
+    owner: root
+    group: root
+    mode: '0755'
+  when: # All of these conditions must be true
+  - rhel_08_010421 | bool
+  - page_poison_default is changed
+  - page_poison_grubd is changed
+  - is_bios.stat.exists
+  notify:
+  - regen_grub_cfg_bios
+  - grubby_page_poison
+  tags: cat_all,cat2
+
+- name: Clear the page allocator to prevent use-after-free attacks (grub) (RHEL-08-010421)
+  ansible.builtin.lineinfile:
+    path: /etc/grub.d/RHEL-08-010421
+    regexp: '^GRUB_CMDLINE_LINUX='
+    line: 'GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX page_poison=1"'
+    create: true
+    owner: root
+    group: root
+    mode: '0755'
+  when: # All of these conditions must be true
+  - rhel_08_010421 | bool
+  - page_poison_default is changed
+  - page_poison_grubd is changed
+  - is_efi.stat.exists
+  notify:
+  - regen_grub_cfg_efi
+  - grubby_page_poison
+  tags: cat_all,cat2
+
+- name: Determine if vsyscall=none exists in /etc/default/grub (RHEL-08-010422)
+  ansible.builtin.command: grep -c "vsyscall=none" /etc/default/grub
+  ignore_errors: true
+  register: vsyscall_default
+  failed_when: false
+  changed_when:
+  - vsyscall_default.rc != 0
+  when:
+  - rhel_08_010422 | bool
+  tags: cat_all,cat2
+
+- name: Determine if "vsyscall=none" exists in /etc/grub.d/ (RHEL-08-010422)
+  ansible.builtin.shell: grep -c "vsyscall=none" /etc/grub.d/*
+  ignore_errors: true
+  register: vsyscall_grubd
+  failed_when: false
+  changed_when:
+  - vsyscall_grubd.rc != 0
+  when:
+  - rhel_08_010422 | bool
+  tags: cat_all,cat2
+
+- name: Disable virtual syscalls (grub) (RHEL-08-010422)
+  ansible.builtin.lineinfile:
+    path: /etc/grub.d/RHEL-08-010422
+    regexp: '^GRUB_CMDLINE_LINUX='
+    line: 'GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX vsyscall=none"'
+    create: true
+    owner: root
+    group: root
+    mode: '0755'
+  when: # All of these conditions must be true
+  - rhel_08_010422 | bool
+  - vsyscall_default is changed
+  - vsyscall_grubd is changed
+  - is_bios.stat.exists
+  notify:
+  - regen_grub_cfg_bios
+  - grubby_vsyscall
+  tags: cat_all,cat2
+
+- name: Disable virtual syscalls (grub) (RHEL-08-010422)
+  ansible.builtin.lineinfile:
+    path: /etc/grub.d/RHEL-08-010422
+    regexp: '^GRUB_CMDLINE_LINUX='
+    line: 'GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX vsyscall=none"'
+    create: true
+    owner: root
+    group: root
+    mode: '0755'
+  when: # All of these conditions must be true
+  - rhel_08_010422 | bool
+  - vsyscall_default is changed
+  - vsyscall_grubd is changed
+  - is_efi.stat.exists
+  notify:
+  - regen_grub_cfg_efi
+  - grubby_vsyscall
+  tags: cat_all,cat2
+
+- name: Determine if "slub_debug=P" exists in /etc/default/grub (RHEL-08-010423)
+  ansible.builtin.command: grep -c "slub_debug=P" /etc/default/grub
+  ignore_errors: true
+  register: slub_debug_default
+  failed_when: false
+  changed_when:
+  - slub_debug_default.rc != 0
+  when:
+  - rhel_08_010423 | bool
+  tags: cat_all,cat2
+
+- name: Determine if "slub_debug=P" exists in /etc/grub.d/ (RHEL-08-010423)
+  ansible.builtin.shell: grep -c "slub_debug=P" /etc/grub.d/*
+  ignore_errors: true
+  register: slub_debug_grubd
+  failed_when: false
+  changed_when:
+  - slub_debug_grubd.rc != 0
+  when:
+  - rhel_08_010423 | bool
+  tags: cat_all,cat2
+
+- name: Clear SLUB/SLAB objects to prevent use-after-free attacks (grub) (RHEL-08-010423)
+  ansible.builtin.lineinfile:
+    path: /etc/grub.d/RHEL-08-010423
+    regexp: '^GRUB_CMDLINE_LINUX='
+    line: 'GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX slub_debug=P"'
+    create: true
+    owner: root
+    group: root
+    mode: '0755'
+  when: # All of these conditions must be true
+  - rhel_08_010423 | bool
+  - slub_debug_default is changed
+  - slub_debug_grubd is changed
+  - is_bios.stat.exists
+  notify:
+  - regen_grub_cfg_bios
+  - grubby_slub_debug
+  tags: cat_all,cat2
+
+- name: Clear SLUB/SLAB objects to prevent use-after-free attacks (grub) (RHEL-08-010423)
+  ansible.builtin.lineinfile:
+    path: /etc/grub.d/RHEL-08-010423
+    regexp: '^GRUB_CMDLINE_LINUX='
+    line: 'GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX slub_debug=P"'
+    create: true
+    owner: root
+    group: root
+    mode: '0755'
+  when: # All of these conditions must be true
+  - rhel_08_010423 | bool
+  - slub_debug_default is changed
+  - slub_debug_grubd is changed
+  - is_efi.stat.exists
+  notify:
+  - regen_grub_cfg_efi
+  - grubby_slub_debug
+  tags: cat_all,cat2
+
+- name: Implement ASLR (sysctl) (RHEL-08-010430)
+  ansible.posix.sysctl:
+    name: kernel.randomize_va_space
+    value: '2'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_010430 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of SSH public host key files (RHEL-08-010480)
+  ansible.builtin.find:
+    paths: /etc/ssh/
+    patterns: '*.pub'
+    file_type: file
+  register: ssh_pubkey_files
+  when:
+  - rhel_08_010480 | bool
+  tags: cat_all,cat2
+
+- name: SSH public host key files must have mode 0644 or less (RHEL-08-010480)
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: '0644'
+  with_items: 
+  - "{{ ssh_pubkey_files.files }}"
+  when:
+  - rhel_08_010480 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of SSH private host key files (RHEL-08-010490)
+  ansible.builtin.find:
+    paths: /etc/ssh/
+    patterns: 'ssh_host*key'
+    file_type: file
+  register: ssh_privkey_files
+  when:
+  - rhel_08_010490 | bool
+  tags: cat_all,cat2
+
+- name: SSH private host key files must have mode 0640 or less (RHEL-08-010490)
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: '0640'
+  with_items: 
+  - "{{ ssh_privkey_files.files }}"
+  when:
+  - rhel_08_010490 | bool
+  tags: cat_all,cat2
+
+- name: Enforce strict mode checking of home dir config files (ssh) (RHEL-08-010500)
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^StrictModes'
+    line: 'StrictModes yes'
+  when:
+  - rhel_08_010500 | bool
+  # notify:
+  # - restart_sshd
+  tags: cat_all,cat2
+
+- name: Do not allow authentication using known host's authentication (ssh) (RHEL-08-010520)
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^IgnoreUserKnownHosts'
+    line: 'IgnoreUserKnownHosts yes'
+  when:
+  - rhel_08_010520 | bool
+  # notify:
+  # - restart_sshd
+  tags: cat_all,cat2
+
+- name: Do not allow Kerberos authentication (ssh) (RHEL-08-010521)
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^KerberosAuthentication'
+    line: 'KerberosAuthentication no'
+  when:
+  - rhel_08_010521 | bool
+  # notify:
+  # - restart_sshd
+  tags: cat_all,cat2
+
+- name: Do not allow GSSAPI authentication (ssh) (RHEL-08-010522)
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^GSSAPIAuthentication'
+    line: 'GSSAPIAuthentication no'
+  when:
+  - rhel_08_010522 | bool
+  # notify:
+  # - restart_sshd
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /tmp directory on separate filesystem/partition (RHEL-08-010543)
+  ansible.builtin.shell: mount | grep -e '\s\/tmp\s' # Search for " /tmp " separated by a single space on both sides
+  failed_when: false # Suppress output during task execution
+  changed_when: tmp_mount.rc != 0
+  register: tmp_mount
+  when:
+  - rhel_08_010543 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-010543 to log file (RHEL-08-010543)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010543 (CAT II): No evidence found that /tmp is mounted on a separate filesystem/partition.'] }}"
+  when:
+  - tmp_mount is changed # Log output only if /tmp was not found on separate partition
+  - rhel_08_010543 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /var/tmp directory on separate filesystem/partition (RHEL-08-010544)
+  ansible.builtin.shell: mount | grep -e '\s\/var\/tmp\s' # Search for " /var/tmp " separated by a single space on both sides
+  failed_when: false # Suppress output during task execution
+  changed_when: var_tmp_mount.rc != 0 # Suppress output during task execution
+  register: var_tmp_mount
+  when:
+  - rhel_08_010544 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-010543 to log file (RHEL-08-010544)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010544 (CAT II): No evidence found that /var/tmp is mounted on a separate filesystem/partition.'] }}"
+  when:
+  - var_tmp_mount is changed # Log output only if /var/tmp was not found on separate partition
+  - rhel_08_010544 | bool
+  tags: cat_all,cat2
+
+- name: Do not allow direct root login through remote access via SSH (RHEL-08-010550)
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^PermitRootLogin'
+    line: 'PermitRootLogin no'
+  when:
+  - rhel_08_010550 | bool
+  # notify:
+  # - restart_sshd
+  tags: cat_all,cat2
+
+- name: Ensure rsyslog is active and enabled (RHEL-08-010561)
+  ansible.builtin.systemd:
+    name: rsyslog
+    state: started
+    enabled: true
+  when:
+  - rhel_08_010561 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /home with the "nosuid" option (RHEL-08-010570)
+  ansible.builtin.shell: mount | grep -e '\s\/home\s' | grep nosuid # Search for " /home " separated by a single space on both sides with "nosuid" option
+  failed_when: false # Suppress output during task execution
+  changed_when: home_mount_nosuid.rc != 0
+  register: home_mount_nosuid
+  when:
+  - rhel_08_010570 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-010570 to log file (RHEL-08-010570)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010570 (CAT II): No evidence found that /home is mounted with the nosuid option.'] }}"
+  when:
+  - home_mount_nosuid is changed # Log output only if /home was not found with the "nosuid" option
+  - rhel_08_010570 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /boot with the "nosuid" option (BIOS) (RHEL-08-010571)
+  ansible.builtin.shell: mount | grep -e '\s\/boot\s' | grep nosuid # Search for " /boot " separated by a single space on both sides with "nosuid" option
+  failed_when: false # Suppress output during task execution
+  changed_when: boot_mount_nosuid.rc != 0
+  register: boot_mount_nosuid
+  when:
+  - is_bios.stat.exists
+  - rhel_08_010571 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-010571 to log file (RHEL-08-010571)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010571 (CAT II): No evidence found that /boot is mounted with the nosuid option.'] }}"
+  when:
+  - is_bios.stat.exists
+  - boot_mount_nosuid is changed # Log output only if /boot was not found with the "nosuid" option
+  - rhel_08_010571 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /boot/efi with the "nosuid" option (UEFI) (RHEL-08-010572)
+  ansible.builtin.shell: mount | grep -e '\s\/boot\/efi\s' | grep nosuid # Search for " /boot/efi " separated by a single space on both sides with "nosuid" option
+  failed_when: false # Suppress output during task execution
+  changed_when: uefi_mount_nosuid.rc != 0
+  register: uefi_mount_nosuid
+  when:
+  - is_efi.stat.exists
+  - rhel_08_010572 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-010572 to log file (RHEL-08-010572)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010572 (CAT II): No evidence found that /boot/efi is mounted with the nosuid option.'] }}"
+  when:
+  - is_efi.stat.exists
+  - uefi_mount_nosuid is changed # Log output only if /boot/efi was not found with the "nosuid" option
+  - rhel_08_010572 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount all non-device partitions with the "nodev" option (RHEL-08-010580)
+  ansible.builtin.shell: mount | grep '^/dev\S* on /\S' | grep --invert-match 'nodev' # Search for all partitions not beginning with "/dev/" that do not have "nodev" option
+  failed_when: false # Suppress output during task execution
+  changed_when: nodev_mounts.stdout | length > 0
+  register: nodev_mounts
+  when:
+  - rhel_08_010580 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-010580 to log file (RHEL-08-010580)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010580 (CAT II): Non-device partitions found without with the nodev option.'] }}"
+  when:
+  - nodev_mounts is changed # Log output only if non-device mounts do not have the "nodev" option
+  - rhel_08_010580 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /home directory with the "noexec" option (RHEL-08-010590)
+  ansible.builtin.shell: mount | grep -e '\s\/home\s' | grep noexec # Search for " /home " separated by a single space on both sides with "noexec" option
+  failed_when: false # Suppress output during task execution
+  changed_when: home_mount_noexec.rc != 0
+  register: home_mount_noexec
+  when:
+  - rhel_08_010590 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-010590 to log file (RHEL-08-010590)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010590 (CAT II): No evidence found that /home is mounted with the noexec option.'] }}"
+  when:
+  - home_mount_noexec is changed # Log output only if /home was not found with the "noexec" option
+  - rhel_08_010590 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Determine if NFS shares are mounted
+  ansible.builtin.shell: mount | grep -e 'type nfs' # Search for "type nfs" separated by a single space
+  failed_when: false # Suppress output during task execution
+  changed_when: nfs_mounts.stdout | length > 0
+  register: nfs_mounts
+  when:
+  - rhel_08_010630 | bool or
+    rhel_08_010640 | bool or
+    rhel_08_010650 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount NFS shares with the "noexec" option (RHEL-08-010630)
+  ansible.builtin.shell: mount | grep -e 'type nfs' | grep noexec # Search for "type nfs" separated by a single space with the "noexec" option
+  failed_when: false # Suppress output during task execution
+  changed_when: nfs_mount_noexec.rc != 0
+  register: nfs_mount_noexec
+  when:
+  - rhel_08_010630 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-010630 to log file (RHEL-08-010630)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010630 (CAT II): No evidence found that NFS shares are mounted with the noexec option.'] }}"
+  when:
+  - nfs_mounts is changed # Log output only if NFS were found AND
+  - nfs_mount_noexec is changed # Log output only if those NFS shares were not found with the "noexec" option
+  - rhel_08_010630 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount NFS shares with the "nodev" option (RHEL-08-010640)
+  ansible.builtin.shell: mount | grep -e 'type nfs' | grep nodev # Search for "type nfs" separated by a single space with the "nodev" option
+  failed_when: false # Suppress output during task execution
+  changed_when: nfs_mount_nodev.rc != 0
+  register: nfs_mount_nodev
+  when:
+  - rhel_08_010640 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-010640 to log file (RHEL-08-010640)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010640 (CAT II): No evidence found that NFS shares are mounted with the nodev option.'] }}"
+  when:
+  - nfs_mounts is changed # Log output only if NFS were found AND
+  - nfs_mount_nodev is changed # Log output only if those NFS shares were not found with the "nodev" option
+  - rhel_08_010640 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount NFS shares with the "nosuid" option (RHEL-08-010650)
+  ansible.builtin.shell: mount | grep -e 'type nfs' | grep nosuid # Search for "type nfs" separated by a single space with the "nosuid" option
+  failed_when: false # Suppress output during task execution
+  changed_when: nfs_mount_nosuid.rc != 0
+  register: nfs_mount_nosuid
+  when:
+  - rhel_08_010650 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-010650 to log file (RHEL-08-010650)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010650 (CAT II): No evidence found that NFS shares are mounted with the nosuid option.'] }}"
+  when:
+  - nfs_mounts is changed # Log output only if NFS were found AND
+  - nfs_mount_nosuid is changed # Log output only if those NFS shares were not found with the "noexec" option
+  - rhel_08_010650 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of world-writable programs that are present in initialization files (RHEL-08-010660)
+  ansible.builtin.shell: for FILE in $(find / -type f -perm -0002 2> /dev/null | grep -v '^/proc' | grep -v '^/sys'); do grep $FILE /home/*/.* 2> /dev/null | awk -F ':' '{ print $2 }'; done
+  ignore_errors: true
+  failed_when: false
+  changed_when: world_writable_prgms.stdout | length > 0
+  register: world_writable_prgms
+  when:
+  - rhel_08_010660 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-010660 to log file (RHEL-08-010660)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010660 (CAT II): World-writable files found in user init files. Changed permissions to 0755.\n{{ world_writable_prgms.stdout }}'] }}"
+  when:
+  - world_writable_prgms is changed
+  - rhel_08_010660 | bool
+  tags: cat_all,cat2
+
+- name: Initialization files must not execute world-writable programs (RHEL-08-010660)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: '0755'
+  with_items:
+  - "{{ world_writable_prgms.stdout_lines }}"
+  when:
+  - world_writable_prgms.stdout | length > 0
+  - rhel_08_010660 | bool
+  tags: cat_all,cat2
+
+- name: Disable kernel dumps (kdump) (RHEL-08-010670)
+  ansible.builtin.systemd:
+    name: kdump.service
+    state: stopped
+    enabled: false
+    masked: true
+  when:
+  - rhel_08_010670 | bool
+  tags: cat_all,cat2
+
+- name: Disable storing core dumps (sysctl) (RHEL-08-010671)
+  ansible.posix.sysctl:
+    name: kernel.core_pattern
+    value: '|/bin/false'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_010671 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of files that enable storing core dumps (sysctl) (RHEL-08-010671)
+  ansible.builtin.shell: grep -E '^kernel.core_pattern' /run/sysctl.d/*.conf /usr/local/lib/sysctl.d/*.conf /usr/lib/sysctll.d/*.conf /lib/sysctl.d/*.conf 2>/dev/null | awk -F':' '{ print $1 }'
+  ignore_errors: true
+  failed_when: false
+  register: coredump_configs
+  changed_when: coredump_configs.stdout | length > 0
+  when:
+  - rhel_08_010671 | bool
+  tags: cat_all,cat2
+
+- name: Comment out conflicting configurations enabling storage of core dumps (RHEL-08-010671)
+  ansible.builtin.replace:
+    path: "{{ item }}"
+    regexp: '^(kernel.core_pattern.*$)' # The regexp must be placed in parenthesis
+    replace: '#\1'
+  with_items:
+  - "{{ coredump_configs.stdout_lines }}"
+  ignore_errors: true
+  failed_when: false
+  when:
+  - rhel_08_010671 | bool
+  - coredump_configs is changed
+  tags: cat_all,cat2
+
+- name: Disable accessing, storing, and processing core dumps (systemd) (RHEL-08-010672)
+  ansible.builtin.systemd:
+    name: systemd-coredump.socket
+    state: stopped
+    masked: true
+  when:
+  - rhel_08_010672 | bool
+  notify:
+  - reload_systemd
+  tags: cat_all,cat2
+
+- name: Disable core dumps for all users (limits.d) (RHEL-08-010673)
+  ansible.builtin.lineinfile:
+    path: /etc/security/limits.d/RHEL-08-010673.conf
+    regexp: '^\*\s+hard\s+core.*'
+    line: '* hard core 0'
+    create: true
+    seuser: system_u
+    serole: object_r
+    setype: etc_t
+    selevel: s0
+  when:
+  - rhel_08_010673 | bool
+  tags: cat_all,cat2
+
+- name: Disable storing core dumps (RHEL-08-010674)
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/coredump.conf
+    regexp: '^Storage.*='
+    line: 'Storage=none'
+  when:
+  - rhel_08_010674 | bool
+  tags: cat_all,cat2
+
+- name: Disable core dump backtraces (RHEL-08-010675)
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/coredump.conf
+    regexp: '^ProcessSizeMax.*='
+    line: 'ProcessSizeMax=0'
+  when:
+  - rhel_08_010675 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Gather list of DNS servers (RHEL-08-010680)
+  ansible.builtin.command: grep '^nameserver' /etc/resolv.conf
+  failed_when: false # Suppress output during task execution
+  changed_when: name_server_count.stdout_lines | length < 2
+  register: name_server_count
+  when:
+  - rhel_08_010680 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Configure a minimum of two name servers for DNS resolution (RHEL-08-010680)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010680 (CAT II): No evidence found that a mimimum of two name servers are configured for DNS resolution.'] }}"
+  when:
+  - name_server_count is changed # Log output only if less than two name servers are configured
+  - rhel_08_010680 | bool
+  tags: cat_all,cat2
+
+- name: World-writable directories must be owned by root, sys, bin, or an application user (RHEL-08-010700)
+  ansible.builtin.shell: find / -type d -perm -0002 -uid +999 2> /dev/null | grep -v '^/proc' | grep -v '^/sys'
+  ignore_errors: true
+  failed_when: false
+  changed_when: world_writable_dirs_owner.stdout | length > 0
+  register: world_writable_dirs_owner
+  when:
+  - rhel_08_010700 | bool
+  tags: cat_all,cat2
+    
+- name: Log findings for RHEL-08-010700 to log file (RHEL-08-010700)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010700 (CAT II): World-writable directories found that are not owned by root, sys, bin, or an application user. Manual action required!'] }}"
+  when:
+  - world_writable_dirs_owner is changed
+  - rhel_08_010700 | bool
+  tags: cat_all,cat2
+
+- name: World-writable directories must be group-owned by root, sys, bin, or an application user (RHEL-08-010710)
+  ansible.builtin.shell: find / -type d -perm -0002 -gid +999 2> /dev/null | grep -v '^/proc' | grep -v '^/sys'
+  ignore_errors: true
+  failed_when: false
+  changed_when: world_writable_dirs_group.stdout | length > 0
+  register: world_writable_dirs_group
+  when:
+  - rhel_08_010710 | bool
+  tags: cat_all,cat2
+    
+- name: Log findings for RHEL-08-010710 to log file (RHEL-08-010710)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010710 (CAT II): World-writable directories found that are not group-owned by root, sys, bin, or an application user. Manual action required!'] }}"
+  when:
+  - world_writable_dirs_group is changed
+  - rhel_08_010710 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Local interactive users must have a home directory assigned in /etc/passwd (RHEL-08-010720)
+  # The following for awk command will accomplish multiple checks:
+  # - ($3 >= 1000) will ensure only UIDs greater than or equal to 1000 are returned ($3 is the UID field)
+  # - ($7 !~ /nologin/) "!~" is a logical check; this will search for and exclude "nologin" ($7 is the shell field)
+  # - (!$6) ensures results only contain those with an empty sixth field (home directory)
+  # - { print $1 } outputs the user name
+  ansible.builtin.shell: awk -F ':' '($3 >= 1000) && ($7 !~ /nologin/) && (!$6) { print $1 }' /etc/passwd
+  ignore_errors: true
+  failed_when: false
+  changed_when: no_home_dir_assigned.stdout | length > 0 # Mark task as changed only if one or more interactive users do not have a home directory assigned
+  register: no_home_dir_assigned
+  when:
+  - rhel_08_010720 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-010720 to log file (RHEL-08-010720)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010720 (CAT II): Interactive users have been found without a home directory assigned in the /etc/passwd file. Manual action required!'] }}"
+  when:
+  - no_home_dir_assigned is changed
+  - rhel_08_010720 | bool
+  tags: cat_all,cat2
+
+- name: Ensure all local interactive users are assigned a home directory (login.defs) (RHEL-08-010760)
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^CREATE_HOME'
+    line: 'CREATE_HOME yes'
+  when:
+  - rhel_08_010760 | bool
+  tags: cat_all,cat2
+
+- name: Set ownership of unowned files and directories to root; exlude NFS, CIFS, and Samba shares (log saved to /tmp/RHEL-08-010780.log) (RHEL-08-010780)
+  ansible.builtin.shell: for RESULT in $(find / -nouser ! -fstype nfs ! -fstype cifs ! -fstype smb 2> /dev/null); do ls -lh $RESULT >> /tmp/RHEL-08-010780.log; chown root $RESULT; done
+  ignore_errors: true
+  failed_when: false
+  changed_when: false
+  when:
+  - rhel_08_010780 | bool
+  tags: cat_all,cat2
+
+- name: Set group ownership of group unowned files and directories to root; exlude NFS, CIFS, and Samba shares (log saved to /tmp/RHEL-08-010790.log) (RHEL-08-010790)
+  ansible.builtin.shell: for RESULT in $(find / -nogroup ! -fstype nfs ! -fstype cifs ! -fstype smb 2> /dev/null); do ls -lh $RESULT >> /tmp/RHEL-08-010790.log; chgrp root $RESULT; done
+  ignore_errors: true
+  failed_when: false
+  changed_when: false
+  when:
+  - rhel_08_010790 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /home directory on separate filesystem/partition (RHEL-08-010800)
+  ansible.builtin.shell: mount | grep -e '\s\/home\s' # Search for " /home " separated by a single space on both sides
+  failed_when: false # Suppress output during task execution
+  changed_when: home_mount.rc != 0
+  register: home_mount
+  when:
+  - rhel_08_010800 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-010800 to log file (RHEL-08-010800)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010800 (CAT II): No evidence found that /home is mounted on a separate filesystem/partition.'] }}"
+  when:
+  - home_mount is changed # Log output only if /home was not found on separate partition
+  - rhel_08_010800 | bool
+  tags: cat_all,cat2
+
+- name: Prevent unattended or automatic login (SSH) (RHEL-08-010830)
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^PermitUserEnvironment'
+    line: 'PermitUserEnvironment no'
+  when:
+  - rhel_08_010830 | bool
+  # notify:
+  # - restart_sshd
+  tags: cat_all,cat2
+
+- name: Ensure account lockouts persist (RHEL-08-020015)
+  ansible.builtin.lineinfile:
+    path: /etc/security/faillock.conf
+    regexp: '^unlock_time'
+    line: 'unlock_time = 0'
+  when:
+  - rhel_08_020015 | bool
+  tags: cat_all,cat2
+
+- name: Ensure account lockouts persist (RHEL-08-020017)
+  ansible.builtin.lineinfile:
+    path: /etc/security/faillock.conf
+    regexp: '^dir'
+    line: 'dir = /var/log/faillock'
+  when:
+  - rhel_08_020017 | bool
+  tags: cat_all,cat2
+
+- name: Prevent displaying messages when three unsuccessful logon attempts occur (RHEL-08-020019)
+  ansible.builtin.lineinfile:
+    path: /etc/security/faillock.conf
+    regexp: '^silent'
+    line: 'silent'
+  when:
+  - rhel_08_020019 | bool
+  tags: cat_all,cat2
+
+- name: Set SELinux context for /var/log/faillock (RHEL-08-020027)
+  ansible.builtin.file:
+    path: /var/log/faillock
+    owner: root
+    group: root
+    mode: '0700'
+    state: directory # Create the directory if it does not exist
+    seuser: system_u
+    serole: object_r
+    setype: faillog_t
+    selevel: s0
+  when:
+  - rhel_08_020027 | bool
+  tags: cat_all,cat2
+
+- name: Set SELinux rule for /var/log/faillock (RHEL-08-020027)
+  ansible.builtin.shell: semanage fcontext -a -t faillog_t "/var/log/faillock(/.*)?"
+  ignore_errors: true
+  failed_when: false
+  when:
+  - rhel_08_020027 | bool
+  notify:
+  - restorecon_faillock
+  tags: cat_all,cat2
+
+- name: Configure screensaver session lock settings (GUI) (RHEL-08-020030, RHEL-08-020031, & RHEL-08-020060)
+  ansible.builtin.copy:
+    src: 00-screensaver
+    dest: /etc/dconf/db/local.d/00-screensaver
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: etc_t
+    selevel: s0
+  when:
+  - (rhel_08_020030 | bool) or (rhel_08_020031 | bool) or (rhel_08_020060 | bool)
+  - gui_capable.matched > 0 # Only run if Xorg* and/or Xwayland* file(s) found in /usr/bin/
+  notify:
+  - dconf_update
+  tags: cat_all,cat2
+
+- name: Disable user list at logon (GUI) (RHEL-08-020032)
+  ansible.builtin.copy:
+    src: 02-login-screen
+    dest: /etc/dconf/db/local.d/02-login-screen
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: etc_t
+    selevel: s0
+  when:
+  - rhel_08_020032 | bool
+  - gui_capable.matched > 0 # Only run if Xorg* and/or Xwayland* file(s) found in /usr/bin/
+  notify:
+  - dconf_update
+  tags: cat_all,cat2
+
+- name: Terminate idle user sessions (logind) (RHEL-08-020035)
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/logind.conf
+    regexp: '^StopIdleSessionSec='
+    line: 'StopIdleSessionSec=900'
+  when:
+  - rhel_08_020035 | bool
+  notify:
+  - restart_logind
+  tags: cat_all,cat2
+
+- name: Preserve running tmux sessions (logind) (RHEL-08-020035)
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/logind.conf
+    regexp: '^KillUserProcesses='
+    line: 'KillUserProcesses=no'
+  when:
+  - rhel_08_020035 | bool
+  notify:
+  - restart_logind
+  tags: cat_all,cat2
+
+- name: Install tmux (RHEL-08-020039)
+  ansible.builtin.dnf:
+    name: "tmux"
+    state: installed
+  when:
+  - rhel_08_020039 | bool
+  tags: cat_all,cat2
+
+- name: Enable user session lock and 15 minute timeout (tmux) (RHEL-08-020040 & RHEL-08-020070)
+  ansible.builtin.copy:
+    src: tmux.conf
+    dest: /etc/tmux.conf
+    backup: true
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: etc_t
+    selevel: s0
+  when:
+  - tmux_config | bool
+  notify:
+  - source_tmux_conf
+  tags: cat_all,cat2
+
+- name: Prompt User if they want to enable TMUX lock Session
+  ansible.builtin.pause:
+    prompt: "\nDo you want to ensure that a TMUX session control is automatically started at shell initialization?  (yes/no) \n\nThis will startup a tmux session everytime you SSH into the system.\n"
+  register: initiate_tmux_response
+  delegate_to: all
+  run_once: true
+  when:
+  - rhel_08_020041 | bool
+  tags: cat_all,cat2
+
+- name: Set proceed_with_tmux variable
+  ansible.builtin.set_fact:
+    proceed_with_tmux: "{{ initiate_tmux_response.user_input | lower == 'yes' }}"
+  when:
+  - rhel_08_020041 | bool
+  tags: cat_all,cat2
+
+- name: Enable user session lock (tmux) (RHEL-08-020041)
+  ansible.builtin.copy:
+    src: tmux.sh
+    dest: /etc/profile.d/tmux.sh
+    backup: true
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: bin_t
+    selevel: s0
+  when:
+  - rhel_08_020041 | bool
+  # - proceed_with_tmux
+  tags: cat_all,cat2
+
+- name: Initiate a session lock when a smartcard is removed (GUI) (RHEL-08-020050)
+  ansible.builtin.copy:
+    src: 20-authselect
+    dest: /etc/dconf/db/distro.d/20-authselect
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: etc_t
+    selevel: s0
+  when:
+  - rhel_08_020050 | bool
+  - gui_capable.matched > 0 # Only run if Xorg* and/or Xwayland* file(s) found in /usr/bin/
+  notify:
+  - dconf_update
+  tags: cat_all,cat2
+
+- name: Prevent users from overriding settings for graphical user interfaces (GUI) (RHEL-08-020080)
+  ansible.builtin.copy:
+    src: session
+    dest: /etc/dconf/db/local.d/locks/session
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: etc_t
+    selevel: s0
+  when:
+  - (rhel_08_020080 | bool) or (rhel_08_020081 | bool) or (rhel_08_020082 | bool)
+  - gui_capable.matched > 0 # Only run if Xorg* and/or Xwayland* file(s) found in /usr/bin/
+  notify:
+  - dconf_update
+  tags: cat_all,cat2
+
+- name: Configure password complexity module for three retries (pwquality.conf) (RHEL-08-020104)
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^retry'
+    line: 'retry = 3'
+  when:
+  - rhel_08_020104 | bool
+  tags: cat_all,cat2
+
+- name: Require at least one uppercase character in passwords (pwquality.conf) (RHEL-08-020110)
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^ucredit\s*=\s*'
+    line: 'ucredit = -1'
+  when:
+  - rhel_08_020110 | bool
+  tags: cat_all,cat2
+
+- name: Require at least one lowercase character in passwords (pwquality.conf) (RHEL-08-020120)
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^lcredit\s*=\s*'
+    line: 'lcredit = -1'
+  when:
+  - rhel_08_020120 | bool
+  tags: cat_all,cat2
+
+- name: Require at least one numeric character in passwords (pwquality.conf) (RHEL-08-020130)
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^dcredit\s*=\s*'
+    line: 'dcredit = -1'
+  when:
+  - rhel_08_020130 | bool
+  tags: cat_all,cat2
+
+- name: Limit the maximum number of repeating characters of the same class in passwords to four (pwquality.conf) (RHEL-08-020140)
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^maxclassrepeat\s*=\s*'
+    line: 'maxclassrepeat = 4'
+  when:
+  - rhel_08_020140 | bool
+  tags: cat_all,cat2
+
+- name: Limit the maximum number of repeating characters in passwords to three (pwquality.conf) (RHEL-08-020150)
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^maxrepeat\s*=\s*'
+    line: 'maxrepeat = 3'
+  when:
+  - rhel_08_020150 | bool
+  tags: cat_all,cat2
+
+- name: Require the change of at least four character classes in password changes (pwquality.conf) (RHEL-08-020160)
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^minclass\s*=\s*'
+    line: 'minclass = 4'
+  when:
+  - rhel_08_020160 | bool
+  tags: cat_all,cat2
+
+- name: Require the change of at least eight characters in password changes (pwquality.conf) (RHEL-08-020170)
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^difok\s*=\s*'
+    line: 'difok = 8'
+  when:
+  - rhel_08_020170 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of users that have a minimum password expiration less than 1 day (RHEL-08-020180)
+  ansible.builtin.shell: for USER in $(awk -F ':' '($3 >= 1000) && ($7 !~ /nologin/) { print $1 }' /etc/passwd); do grep $USER /etc/shadow | awk -F ':' '($2 !~ /!!/) && ($4 < 1) { print $1 }'; done
+  ignore_errors: true
+  failed_when: false
+  changed_when: minpw_users.stdout | length > 0 
+  register: minpw_users
+  when:
+  - rhel_08_020180 | bool
+  tags: cat_all,cat2
+
+- name: Passwords must have a 24 hours/1 day minimum lifetime restriction in /etc/shadow (exclude system accounts) (RHEL-08-020180)
+  ansible.builtin.command: chage -m 1 "{{ item }}"
+  ignore_errors: true
+  loop: "{{ minpw_users.stdout_lines }}"
+  when:
+  - minpw_users is changed
+  - rhel_08_020180 | bool
+  tags: cat_all,cat2
+
+- name: Ensure new users or password changes have a 24 hour/1 day minimum lifetime (login.defs) (RHEL-08-020190)
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^PASS_MIN_DAYS'
+    line: 'PASS_MIN_DAYS 1'
+  when:
+  - rhel_08_020190 | bool
+  tags: cat_all,cat2
+
+- name: Ensure user account passwords have a 60-day maximum lifetime (login.defs) (RHEL-08-020200)
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^PASS_MAX_DAYS'
+    line: 'PASS_MAX_DAYS 60'
+  when:
+  - rhel_08_020200 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of users that have a maximum password expiration greater than 60 days or never expire (RHEL-08-020210)
+  ansible.builtin.shell: for USER in $(awk -F ':' '($3 >= 1000) && ($7 !~ /nologin/) { print $1 }' /etc/passwd); do grep $USER /etc/shadow | awk -F ':' '($5 > 60) || ($5 <= 0) { print $1 }'; done
+  ignore_errors: true
+  failed_when: false
+  changed_when: maxpw_users.stdout | length > 0 
+  register: maxpw_users
+  when:
+  - rhel_08_020210 | bool
+  tags: cat_all,cat2
+
+- name: Existing passwords must be restricted to a 60-day maximum lifetime (exclude system accounts) (RHEL-08-020210)
+  ansible.builtin.command: chage -M 60 "{{ item }}"
+  ignore_errors: true
+  loop: "{{ maxpw_users.stdout_lines }}"
+  when:
+  - maxpw_users is changed
+  - rhel_08_020210 | bool
+  tags: cat_all,cat2
+
+- name: Enforce 15-character minimum passwords (pwquality.conf) (RHEL-08-020230)
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^minlen'
+    line: 'minlen = 15'
+  when:
+  - rhel_08_020230 | bool
+  tags: cat_all,cat2
+
+- name: Enforce 15-character minimum passwords (login.defs) (RHEL-08-020231)
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^PASS_MIN_LEN'
+    line: 'PASS_MIN_LEN 15'
+  when:
+  - rhel_08_020231 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of interactive users with duplicate UIDs (RHEL-08-020240)
+  ansible.builtin.shell: awk -F ":" '(list[$3] ++) && ($7 !~ /nologin/) { print $1 }' /etc/passwd
+  ignore_errors: true
+  failed_when: false
+  changed_when: dupe_uid_users.stdout | length > 0 
+  register: dupe_uid_users
+  when:
+  - rhel_08_020240 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-020240 to log file (RHEL-08-020240)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-020240 (CAT II): Interactive users have been found duplicate UIDs. Manual action required!.'] }}"
+  when:
+  - dupe_uid_users is changed
+  - rhel_08_020240 | bool
+  tags: cat_all,cat2
+
+- name: Account identifiers (individuals, groups, roles, & devices) must be disabled after 35 days of inactivity (RHEL-08-020260)
+  ansible.builtin.lineinfile:
+    path: /etc/default/useradd
+    regexp: '^INACTIVE'
+    line: 'INACTIVE=35'
+  ignore_errors: true
+  when:
+  - rhel_08_020260 | bool
+  tags: cat_all,cat2
+
+- name: Require at least one special character in passwords (pwquality.conf) (RHEL-08-020280)
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^ocredit\s*=\s*'
+    line: 'ocredit = -1'
+  when:
+  - rhel_08_020280 | bool
+  tags: cat_all,cat2
+
+- name: Prevent the use of dictionary words in passwords (pwquality.conf) (RHEL-08-020300)
+  ansible.builtin.lineinfile:
+    path: /etc/security/pwquality.conf
+    regexp: '^dictcheck\s*=\s*'
+    line: 'dictcheck = 1'
+  when:
+  - rhel_08_020300 | bool
+  tags: cat_all,cat2
+
+- name: Enforce delay of at least four seconds between logon prompts following a failed attempt (login.defs) (RHEL-08-020310)
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^FAIL_DELAY'
+    line: 'FAIL_DELAY 4'
+  when:
+  - rhel_08_020310 | bool
+  tags: cat_all,cat2
+
+- name: Remove unnecessary accounts (games & gopher) (RHEL-08-020320)
+  ansible.builtin.user:
+    name: "{{ item }}"
+    state: absent
+    remove: true
+    force: true
+  loop:
+  - games
+  - gopher
+  ignore_errors: true
+  when:
+  - rhel_08_020320 | bool
+  tags: cat_all,cat2
+
+- name: Display date and time of last successful SSH login (ssh) (RHEL-08-020350)
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^PrintLastLog'
+    line: 'PrintLastLog yes'
+  when:
+  - rhel_08_020350 | bool
+  # notify:
+  # - restart_sshd
+  tags: cat_all,cat2
+
+- name: Define default permissions for all authenticated users (login.defs) (RHEL-08-020351)
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^UMASK'
+    line: 'UMASK 077'
+  when:
+  - rhel_08_020351 | bool
+  tags: cat_all,cat2
+
+- name: Define default permissions for logon and non-logon shells (umask) (RHEL-08-020353)
+  ansible.builtin.replace:
+    path: "{{ item }}"
+    regexp: 'umask\s.*$'
+    replace: 'umask 077'
+  loop:
+  - /etc/bashrc
+  - /etc/csh.cshrc
+  - /etc/profile
+  when:
+  - rhel_08_020353 | bool
+  tags: cat_all,cat2
+
+- name: Implement cron logging (rsyslog) (RHEL-08-030010)
+  ansible.builtin.lineinfile:
+    path: /etc/rsyslog.conf
+    regexp: '^cron\.\*\s*/var/log/cron$'
+    line: 'cron.* /var/log/cron'
+  when:
+  - rhel_08_030010 | bool
+  notify:
+  - restart_rsyslog
+  tags: cat_all,cat2
+
+- name: SA and ISSO must be alerted of an audit processing failure event (RHEL-08-030020)
+  ansible.builtin.lineinfile:
+    path: /etc/audit/auditd.conf
+    regexp: '^action_mail_acct'
+    line: 'action_mail_acct = root'
+  when:
+  - rhel_08_030020 | bool
+  notify:
+  - restart_auditd
+  tags: cat_all,cat2
+
+- name: SA and ISSO must have mail aliases to be notified of an audit processing failure (RHEL-08-030030)
+  ansible.builtin.lineinfile:
+    path: /etc/aliases
+    regexp: 'postmaster:\s*root$'
+    line: 'postmaster: root'
+  when:
+  - rhel_08_030030 | bool
+  tags: cat_all,cat2
+
+- name: Configure auditd to log failure of the audit processing service (RHEL-08-030040)
+  ansible.builtin.lineinfile:
+    path: /etc/audit/auditd.conf
+    regexp: '^disk_error_action'
+    line: 'disk_error_action = SYSLOG'
+  when:
+  - rhel_08_030040 | bool
+  notify:
+  - restart_auditd
+  tags: cat_all,cat2
+
+- name: RHEL 8 audit system must take appropriate action when the audit storage volume is full (RHEL-08-030060)
+  ansible.builtin.lineinfile:
+    path: /etc/audit/auditd.conf
+    regexp: '^disk_full_action'
+    line: 'disk_full_action = HALT'
+  when:
+  - rhel_08_030060 | bool
+  tags: cat_all,cat2
+
+- name: RHEL 8 audit system must audit local events (RHEL-08-030061)
+  ansible.builtin.lineinfile:
+    path: /etc/audit/auditd.conf
+    regexp: '^local_events'
+    line: 'local_events = yes'
+  when:
+  - rhel_08_030061 | bool
+  tags: cat_all,cat2
+
+- name: RHEL 8 must label all off-loaded audit logs before sending them to the central log server (RHEL-08-030062)
+  ansible.builtin.lineinfile:
+    path: /etc/audit/auditd.conf
+    regexp: '^name_format'
+    line: 'name_format = hostname'
+  when:
+  - rhel_08_030062 | bool
+  tags: cat_all,cat2
+
+- name: RHEL 8 audit system must take appropriate action when the audit storage volume is full (RHEL-08-030060)
+  ansible.builtin.lineinfile:
+    path: /etc/audit/auditd.conf
+    regexp: '^disk_full_action'
+    line: 'disk_full_action = HALT'
+  when:
+  - rhel_08_030060 | bool
+  tags: cat_all,cat2
+
+- name: RHEL 8 audit system must audit local events (RHEL-08-030061)
+  ansible.builtin.lineinfile:
+    path: /etc/audit/auditd.conf
+    regexp: '^local_events'
+    line: 'local_events = yes'
+  when:
+  - rhel_08_030061 | bool
+  tags: cat_all,cat2
+
+- name: RHEL 8 must label all off-loaded audit logs before sending them to the central log server (RHEL-08-030062)
+  ansible.builtin.lineinfile:
+    path: /etc/audit/auditd.conf
+    regexp: '^name_format'
+    line: 'name_format = hostname'
+  when:
+  - rhel_08_030062 | bool
+  tags: cat_all,cat2
+
+- name: /var/log/audit/audit.log must have mode 0600 or less permissive (RHEL-08-030070)
+  ansible.builtin.file:
+    path: /var/log/audit/audit.log
+    mode: '0600'
+  when:
+  - rhel_08_030070 | bool
+  tags: cat_all,cat2
+
+- name: /var/log/audit/audit.log must be owned by root to prevent unauthorized read access (RHEL-08-030080)
+  ansible.builtin.file:
+    path: /var/log/audit/audit.log
+    owner: 'root'
+  when:
+  - rhel_08_030080 | bool
+  tags: cat_all,cat2
+
+- name: /var/log/audit/audit.log be group-owned by root to prevent unauthorized read access (RHEL-08-030090)
+  ansible.builtin.file:
+    path: /var/log/audit/audit.log
+    group: 'root'
+  when:
+  - rhel_08_030090 | bool
+  tags: cat_all,cat2
+
+- name: /var/log/audit/ must be owned by root to prevent unauthorized read access (RHEL-08-030100)
+  ansible.builtin.file:
+    path: /var/log/audit/
+    owner: 'root'
+  when:
+  - rhel_08_030100 | bool
+  tags: cat_all,cat2
+
+- name: /var/log/audit/ must be group-owned by root to prevent unauthorized read access (RHEL-08-030110)
+  ansible.builtin.file:
+    path: /var/log/audit/
+    group: 'root'
+  when:
+  - rhel_08_030110 | bool
+  tags: cat_all,cat2
+
+- name: /var/log/audit/ directory must have mode 0700 or less permissive (RHEL-08-030120)
+  ansible.builtin.file:
+    path: /var/log/audit
+    mode: '0700'
+  when:
+  - rhel_08_030120 | bool
+  tags: cat_all,cat2
+
+- name: Ensure audit package is installed (RHEL-08-030180)
+  block:
+    - name: Ensure audit package is installed (RHEL-08-030180)
+      ansible.builtin.dnf:
+        name: "audit"
+        state: installed
+  rescue:
+    - name: Log findings for RHEL-08-030180 to log file (RHEL-08-030180)
+      ansible.builtin.set_fact:
+        log_var: "{{ log_var + ['- RHEL-08-030180: Encountered error during installation of audit package'] }}"
+  when:
+  - rhel_08_030180 | bool
+  tags: cat_all,cat2
+
+- name: auditd service must be active and enabled (RHEL-08-030181)
+  block:
+    - name: auditd service must be active and enabled (RHEL-08-030181)
+      ansible.builtin.systemd:
+        name: auditd
+        state: started
+        enabled: true
+  rescue:
+    - name: Log findings for RHEL-08-030181 to log file (RHEL-08-030181)
+      ansible.builtin.set_fact:
+        log_var: "{{ log_var + ['- RHEL-08-030181 (CAT II): Encounter error starting and enabling auditd service.'] }}"
+  when:
+  - rhel_08_030181 | bool
+  tags: cat_all,cat2
+
+- name: Audit tools must have mode 0755 or less permissive (RHEL-08-030620)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: '0755'
+  ignore_errors: true
+  loop:
+  - /sbin/auditctl
+  - /sbin/aureport
+  - /sbin/ausearch
+  - /sbin/autrace
+  - /sbin/auditd
+  - /sbin/rsyslogd
+  - /sbin/augenrules
+  when:
+  - rhel_08_030620 | bool
+  tags: cat_all,cat2
+
+- name: Audit tools must be owned by root (RHEL-08-030630)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: root
+  ignore_errors: true
+  loop:
+  - /sbin/auditctl
+  - /sbin/aureport
+  - /sbin/ausearch
+  - /sbin/autrace
+  - /sbin/auditd
+  - /sbin/rsyslogd
+  - /sbin/augenrules
+  when:
+  - rhel_08_030630 | bool
+  tags: cat_all,cat2
+
+- name: Audit tools must be owned by root (RHEL-08-030640)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    group: root
+  ignore_errors: true
+  loop:
+  - /sbin/auditctl
+  - /sbin/aureport
+  - /sbin/ausearch
+  - /sbin/autrace
+  - /sbin/auditd
+  - /sbin/rsyslogd
+  - /sbin/augenrules
+  when:
+  - rhel_08_030640 | bool
+  tags: cat_all,cat2
+
+- name: Ensure rsyslog package is installed (RHEL-08-030670)
+  block:
+    - name: Ensure rsyslog package is installed (RHEL-08-030670)
+      ansible.builtin.dnf:
+        name: "rsyslog.x86_64"
+        state: installed
+  rescue:
+    - name: Log findings for RHEL-08-030670 to log file (RHEL-08-030670)
+      ansible.builtin.set_fact:
+        log_var: "{{ log_var + ['- RHEL-08-030670: Encountered error during installation of rsyslog.x86_64 package'] }}"
+  when:
+  - rhel_08_030670 | bool
+  tags: cat_all,cat2
+
+- name: Ensure rsyslog-gnutls package is installed (RHEL-08-030680)
+  block:
+    - name: Ensure rsyslog-gnutls package is installed (RHEL-08-030680)
+      ansible.builtin.dnf:
+        name: "rsyslog-gnutls"
+        state: installed
+  rescue:
+    - name: Log findings for RHEL-08-030680 to log file (RHEL-08-030680)
+      ansible.builtin.set_fact:
+        log_var: "{{ log_var + ['- RHEL-08-030680: Encountered error during installation of rsyslog-gnutls package'] }}"
+  when:
+  - rhel_08_030680 | bool
+  tags: cat_all,cat2
+
+- name: Audit records must be off-loaded to a different system or storage media (RHEL-08-030690)
+  ansible.builtin.shell: grep -E '^[^#].*\@{1,2}.*:[[:digit:]]+' /etc/rsyslog.conf /etc/rsyslog.d/*.conf
+  ignore_errors: true
+  failed_when: false
+  changed_when: remote_audit.rc != 0
+  register: remote_audit
+  when:
+  - rhel_08_030690 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-030660 to log file (RHEL-08-030660)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-030690 (CAT II): No evidence found audit records are being off-loaded to a different system or storage media.'] }}"
+  when:
+  - remote_audit is changed # Log output only if /var/log/audit was not found on separate partition
+  - rhel_08_030690 | bool
+  tags: cat_all,cat2
+
+- name: Configure auditd to log when the internal event queue is full (RHEL-08-030700)
+  ansible.builtin.lineinfile:
+    path: /etc/audit/auditd.conf
+    regexp: '^overflow_action'
+    line: 'overflow_action = syslog'
+  when:
+  - rhel_08_030700 | bool
+  notify:
+  - restart_auditd
+  tags: cat_all,cat2
+
+- name: Configure auditd to trigger an action when record storage reaches 75 percent capacity (RHEL-08-030730)
+  ansible.builtin.lineinfile:
+    path: /etc/audit/auditd.conf
+    regexp: '^space_left[\s]*='
+    line: 'space_left = 25%'
+  when:
+  - rhel_08_030730 | bool
+  notify:
+  - restart_auditd
+  tags: cat_all,cat2
+
+- name: Configure auditd to notify the SA and ISSO when record storage reaches 75 percent capacity (RHEL-08-030731)
+  ansible.builtin.lineinfile:
+    path: /etc/audit/auditd.conf
+    regexp: '^space_left_action'
+    line: 'space_left_action = email'
+  when:
+  - rhel_08_030731 | bool
+  notify:
+  - restart_auditd
+  tags: cat_all,cat2
+
+- name: Remove abrt packages (RHEL-08-040001)
+  ansible.builtin.dnf:
+    name: "abrt*"
+    state: absent
+  when:
+  - rhel_08_040001 | bool
+  tags: cat_all,cat2
+
+- name: Remove sendmail package (RHEL-08-040002)
+  ansible.builtin.dnf:
+    name: "sendmail"
+    state: absent
+  when:
+  - rhel_08_040002 | bool
+  tags: cat_all,cat2
+
+- name: Disable built-in or attached camera (modprobe.d) (requires reboot) (RHEL-08-040020)
+  ansible.builtin.lineinfile:
+    path: /etc/modprobe.d/blacklist.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    create: true
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: modules_conf_t
+    selevel: s0
+  with_items:
+  - { regexp: '^install uvcvideo', line: 'install uvcvideo /bin/false' }
+  - { regexp: '^blacklist uvcvideo', line: 'blacklist uvcvideo' } 
+  when:
+  - rhel_08_040020 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of installed packages
+  ansible.builtin.package_facts:
+    manager: auto
+  when:
+  - rhel_08_040070 | bool
+  tags: cat_all,cat2
+
+- name: Disable autofs unless required (RHEL-08-040070)
+  ansible.builtin.systemd:
+    name: autofs
+    state: stopped
+    enabled: false
+  when:
+  - "'autofs' in ansible_facts.packages"
+  - rhel_08_040070 | bool
+  tags: cat_all,cat2
+
+- name: Disable USB mass storage (modprobe.d) (requires reboot) (RHEL-08-040080)
+  ansible.builtin.lineinfile:
+    path: /etc/modprobe.d/blacklist.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    create: true
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: modules_conf_t
+    selevel: s0
+  with_items:
+  - { regexp: '^install usb-storage', line: 'install usb-storage /bin/false' }
+  - { regexp: '^blacklist usb-storage', line: 'blacklist usb-storage' } 
+  when:
+  - rhel_08_040080 | bool
+  tags: cat_all,cat2
+
+- name: Ensure firewalld package is installed (RHEL-08-040100)
+  block:
+    - name: Ensure firewalld package is installed (RHEL-08-040100)
+      ansible.builtin.dnf:
+        name: "firewalld.noarch"
+        state: installed
+  rescue:
+    - name: Log findings for RHEL-08-040100 to log file (RHEL-08-040100)
+      ansible.builtin.set_fact:
+        log_var: "{{ log_var + ['- RHEL-08-0040100: Encountered error during installation of firewalld.noarch package'] }}"
+  when:
+  - rhel_08_040100 | bool
+  tags: cat_all,cat2
+
+- name: Disable all wireless network interfaces (RHEL-08-040110)
+  ansible.builtin.command: nmcli radio all off
+  ignore_errors: true
+  failed_when: false
+  when:
+  - rhel_08_040110 | bool
+  tags: cat_all
+
+- name: Disable Bluetooth (modprobe.d) (requires reboot) (RHEL-08-040111)
+  ansible.builtin.lineinfile:
+    path: /etc/modprobe.d/blacklist.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    create: true
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: modules_conf_t
+    selevel: s0
+  with_items:
+  - { regexp: '^install bluetooth', line: 'install bluetooth /bin/false' }
+  - { regexp: '^blacklist bluetooth', line: 'blacklist bluetooth' } 
+  when:
+  - rhel_08_040111 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /dev/shm with the "nodev" option (RHEL-08-040120)
+  ansible.builtin.shell: mount | grep '\s/dev\/shm\s' | grep nodev # Search for " /dev/shm " separated by a single space on both sides with "nodev" option
+  failed_when: false # Suppress output during task execution
+  changed_when: shm_mount_nodev.rc != 0
+  register: shm_mount_nodev
+  when:
+  - rhel_08_040120 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-040120 to log file (RHEL-08-040120)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-040120 (CAT II): /dev/shm found without the nodev option.'] }}"
+  when:
+  - shm_mount_nodev is changed # Log output only if /dev/shm was not found with the "nodev" option
+  - rhel_08_040120 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /dev/shm with the "nosuid" option (RHEL-08-040121)
+  ansible.builtin.shell: mount | grep '\s/dev\/shm\s' | grep nosuid # Search for " /dev/shm " separated by a single space on both sides with "nosuid" option
+  failed_when: false # Suppress output during task execution
+  changed_when: shm_mount_nosuid.rc != 0
+  register: shm_mount_nosuid
+  when:
+  - rhel_08_040121 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-040121 to log file (RHEL-08-040121)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-040121 (CAT II): /dev/shm found without the nosuid option.'] }}"
+  when:
+  - shm_mount_nosuid is changed # Log output only if /dev/shm was not found with the "nosuid" option
+  - rhel_08_040121 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /dev/shm with the "noexec" option (RHEL-08-040122)
+  ansible.builtin.shell: mount | grep '\s/dev\/shm\s' | grep noexec # Search for " /dev/shm " separated by a single space on both sides with "noexec" option
+  failed_when: false # Suppress output during task execution
+  changed_when: shm_mount_noexec.rc != 0
+  register: shm_mount_noexec
+  when:
+  - rhel_08_040122 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-040122 to log file (RHEL-08-040122)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-040122 (CAT II): /dev/shm found without the noexec option.'] }}"
+  when:
+  - shm_mount_noexec is changed # Log output only if /dev/shm was not found with the "noexec" option
+  - rhel_08_040122 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /tmp with the "nodev" option (RHEL-08-040123)
+  ansible.builtin.shell: mount | grep '\s/tmp\s' | grep nodev # Search for " /tmp " separated by a single space on both sides with "nodev" option
+  failed_when: false # Suppress output during task execution
+  changed_when: tmp_mount_nodev.rc != 0
+  register: tmp_mount_nodev
+  when:
+  - rhel_08_040123 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-040123 to log file (RHEL-08-040123)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-040123 (CAT II): /tmp found without the nodev option.'] }}"
+  when:
+  - tmp_mount_nodev is changed # Log output only if /tmp was not found with the "nodev" option
+  - rhel_08_040123 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /tmp with the "nosuid" option (RHEL-08-040124)
+  ansible.builtin.shell: mount | grep '\s/tmp\s' | grep nosuid # Search for " /tmp " separated by a single space on both sides with "nosuid" option
+  failed_when: false # Suppress output during task execution
+  changed_when: tmp_mount_nosuid.rc != 0
+  register: tmp_mount_nosuid
+  when:
+  - rhel_08_040124 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-040124 to log file (RHEL-08-040124)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-040124 (CAT II): /tmp found without the nosuid option.'] }}"
+  when:
+  - tmp_mount_nosuid is changed # Log output only if /tmp was not found with the "nosuid" option
+  - rhel_08_040124 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /tmp with the "noexec" option (RHEL-08-040125)
+  ansible.builtin.shell: mount | grep '\s/tmp\s' | grep noexec # Search for " /tmp " separated by a single space on both sides with "noexec" option
+  failed_when: false # Suppress output during task execution
+  changed_when: tmp_mount_noexec.rc != 0
+  register: tmp_mount_noexec
+  when:
+  - rhel_08_040125 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-040125 to log file (RHEL-08-040125)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-040125 (CAT II): /tmp found without the noexec option.'] }}"
+  when:
+  - tmp_mount_noexec is changed # Log output only if /tmp was not found with the "noexec" option
+  - rhel_08_040125 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /var/log with the "nodev" option (RHEL-08-040126)
+  ansible.builtin.shell: mount | grep '\s/var\/log\s' | grep nodev # Search for " /var/log " separated by a single space on both sides with "nodev" option
+  failed_when: false # Suppress output during task execution
+  changed_when: var_log_mount_nodev.rc != 0
+  register: var_log_mount_nodev
+  when:
+  - rhel_08_040126 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-040126 to log file (RHEL-08-040126)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-040126 (CAT II): /var/log found without the nodev option.'] }}"
+  when:
+  - var_log_mount_nodev is changed # Log output only if /var/log was not found with the "nodev" option
+  - rhel_08_040126 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /var/log with the "nosuid" option (RHEL-08-040127)
+  ansible.builtin.shell: mount | grep '\s/var\/log\s' | grep nosuid # Search for " /var/log " separated by a single space on both sides with "nosuid" option
+  failed_when: false # Suppress output during task execution
+  changed_when: var_log_mount_nosuid.rc != 0
+  register: var_log_mount_nosuid
+  when:
+  - rhel_08_040127 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-040127 to log file (RHEL-08-040127)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-040127 (CAT II): /var/log found without the nosuid option.'] }}"
+  when:
+  - var_log_mount_nosuid is changed # Log output only if /var/log was not found with the "nosuid" option
+  - rhel_08_040127 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /var/log with the "noexec" option (RHEL-08-040128)
+  ansible.builtin.shell: mount | grep '\s/var\/log\s' | grep noexec # Search for " /var/log " separated by a single space on both sides with "noexec" option
+  failed_when: false # Suppress output during task execution
+  changed_when: var_log_mount_noexec.rc != 0
+  register: var_log_mount_noexec
+  when:
+  - rhel_08_040128 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-040128 to log file (RHEL-08-040128)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-040128 (CAT II): /var/log found without the noexec option.'] }}"
+  when:
+  - var_log_mount_noexec is changed # Log output only if /var/log was not found with the "noexec" option
+  - rhel_08_040128 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /var/log/audit with the "nodev" option (RHEL-08-040129)
+  ansible.builtin.shell: mount | grep '\s/var\/log\/audit\s' | grep nodev # Search for " /var/log/audit " separated by a single space on both sides with "nodev" option
+  failed_when: false # Suppress output during task execution
+  changed_when: var_log_audit_mount_nodev.rc != 0
+  register: var_log_audit_mount_nodev
+  when:
+  - rhel_08_040129 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-040129 to log file (RHEL-08-040129)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-040129 (CAT II): /var/log/audit found without the nodev option.'] }}"
+  when:
+  - var_log_audit_mount_nodev is changed # Log output only if /var/log/audit was not found with the "nodev" option
+  - rhel_08_040129 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /var/log/audit with the "nosuid" option (RHEL-08-040130)
+  ansible.builtin.shell: mount | grep '\s/var\/log\/audit\s' | grep nosuid # Search for " /var/log/audit " separated by a single space on both sides with "nosuid" option
+  failed_when: false # Suppress output during task execution
+  changed_when: var_log_audit_mount_nosuid.rc != 0
+  register: var_log_audit_mount_nosuid
+  when:
+  - rhel_08_040130 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-040130 to log file (RHEL-08-040130)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-040130 (CAT II): /var/log/audit found without the nosuid option.'] }}"
+  when:
+  - var_log_audit_mount_nosuid is changed # Log output only if /var/log/audit was not found with the "nosuid" option
+  - rhel_08_040130 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /var/log/audit with the "noexec" option (RHEL-08-040131)
+  ansible.builtin.shell: mount | grep '\s/var\/log\/audit\s' | grep noexec # Search for " /var/log/audit " separated by a single space on both sides with "noexec" option
+  failed_when: false # Suppress output during task execution
+  changed_when: var_log_audit_mount_noexec.rc != 0
+  register: var_log_audit_mount_noexec
+  when:
+  - rhel_08_040131 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-040131 to log file (RHEL-08-040131)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-040131 (CAT II): /var/log/audit found without the noexec option.'] }}"
+  when:
+  - var_log_audit_mount_noexec is changed # Log output only if /var/log/audit was not found with the "noexec" option
+  - rhel_08_040131 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /var/tmp with the "nodev" option (RHEL-08-040132)
+  ansible.builtin.shell: mount | grep '\s/var\/tmp\s' | grep nodev # Search for " /var/tmp " separated by a single space on both sides with "nodev" option
+  failed_when: false # Suppress output during task execution
+  changed_when: var_tmp_mount_nodev.rc != 0
+  register: var_tmp_mount_nodev
+  when:
+  - rhel_08_040132 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-040132 to log file (RHEL-08-040132)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-040132 (CAT II): /var/tmp found without the nodev option.'] }}"
+  when:
+  - var_tmp_mount_nodev is changed # Log output only if /var/tmp was not found with the "nodev" option
+  - rhel_08_040132 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /var/tmp with the "nosuid" option (RHEL-08-040133)
+  ansible.builtin.shell: mount | grep '\s/var\/tmp\s' | grep nosuid # Search for " /var/tmp " separated by a single space on both sides with "nosuid" option
+  failed_when: false # Suppress output during task execution
+  changed_when: var_tmp_mount_nosuid.rc != 0
+  register: var_tmp_mount_nosuid
+  when:
+  - rhel_08_040133 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-040133 to log file (RHEL-08-040133)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-040133 (CAT II): /var/tmp found without the nosuid option.'] }}"
+  when:
+  - var_tmp_mount_nosuid is changed # Log output only if /var/tmp was not found with the "nosuid" option
+  - rhel_08_040133 | bool
+  tags: cat_all,cat2
+
+- name: (INFO ONLY) Mount /var/tmp with the "noexec" option (RHEL-08-040134)
+  ansible.builtin.shell: mount | grep '\s/var\/tmp\s' | grep noexec # Search for " /var/tmp " separated by a single space on both sides with "noexec" option
+  failed_when: false # Suppress output during task execution
+  changed_when: var_tmp_mount_noexec.rc != 0
+  register: var_tmp_mount_noexec
+  when:
+  - rhel_08_040134 | bool
+  tags: cat_all,cat2
+
+- name: Log findings for RHEL-08-040134 to log file (RHEL-08-040134)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-040134 (CAT II): /var/tmp found without the noexec option.'] }}"
+  when:
+  - var_tmp_mount_noexec is changed # Log output only if /var/tmp was not found with the "noexec" option
+  - rhel_08_040134 | bool
+  tags: cat_all,cat2
+
+- name: Ensure fapolicyd package is installed (RHEL-08-040135)
+  block:
+    - name: Ensure fapolicyd package is installed (RHEL-08-040135)
+      ansible.builtin.dnf:
+        name: "fapolicyd.x86_64"
+        state: installed
+  rescue:
+    - name: Log findings for RHEL-08-040135 to log file (RHEL-08-040135)
+      ansible.builtin.set_fact:
+        log_var: "{{ log_var + ['- RHEL-08-0040135: Encountered error during installation of fapolicyd.x86_64 package'] }}"
+  when:
+  - rhel_08_040135 | bool
+  tags: cat_all,cat2
+
+- name: Ensure usbguard package is installed (RHEL-08-040139)
+  block:
+    - name: Ensure usbguard package is installed (RHEL-08-040139)
+      ansible.builtin.dnf:
+        name: "usbguard.x86_64"
+        state: installed
+  rescue:
+    - name: Log findings for RHEL-08-040139 to log file (RHEL-08-040139)
+      ansible.builtin.set_fact:
+        log_var: "{{ log_var + ['- RHEL-08-0040139: Encountered error during installation of usbguard.x86_64 package'] }}"
+  when:
+  - rhel_08_040139 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of installed packages
+  ansible.builtin.package_facts:
+    manager: auto
+  when:
+  - rhel_08_040140 | bool
+  tags: cat_all,cat2
+
+- name: Configure blocking of unauthorized peripherals (usbguard) (RHEL-08-040140)
+  ansible.builtin.shell: usbguard generate-policy > /etc/usbguard/rules.conf
+  ignore_errors: true
+  failed_when: usbguard_genpolicy.rc != 0 
+  register: usbguard_genpolicy
+  when:
+  - "'usbguard' in ansible_facts.packages"
+  - rhel_08_040140 | bool
+  notify:
+  - restart_usbguard
+  tags: cat_all,cat2
+
+- name: Gather list of installed packages
+  ansible.builtin.package_facts:
+    manager: auto
+  when:
+  - rhel_08_040141 | bool
+  tags: cat_all,cat2
+
+- name: Ensure usbguard is active and enabled (RHEL-08-040141)
+  ansible.builtin.systemd:
+    name: usbguard
+    state: started
+    enabled: true
+  ignore_errors: true
+  when:
+  - "'usbguard' in ansible_facts.packages"
+  - rhel_08_040141 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of installed packages
+  ansible.builtin.package_facts:
+    manager: auto
+  when:
+  - rhel_08_040150 | bool
+  tags: cat_all,cat2
+
+- name: Configure nftables as default backend for firewalld (RHEL-08-040150)
+  ansible.builtin.lineinfile:
+    path: /etc/firewalld/firewalld.conf
+    regexp: '^FirewallBackend'
+    line: 'FirewallBackend=nftables'
+  when:
+  - "'firewalld' in ansible_facts.packages"
+  - rhel_08_040150 | bool
+  tags: cat_all,cat2
+
+- name: Ensure openssh-server.x86_64 package is installed (RHEL-08-040159)
+  ansible.builtin.dnf:
+    name: "openssh-server.x86_64"
+    state: installed
+  when:
+  - rhel_08_040159 | bool
+  tags: cat_all,cat2
+
+- name: Ensure SSH is loaded and active (RHEL-08-040160)
+  ansible.builtin.systemd:
+    name: sshd
+    state: started
+    enabled: true
+  when:
+  - rhel_08_040160 | bool
+  tags: cat_all,cat2
+
+- name: Configure SSH server to force frequent session key renegotiation (ssh) (RHEL-08-040161)
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^RekeyLimit'
+    line: 'RekeyLimit 1G 1h'
+  when:
+  - rhel_08_040161 | bool
+  # notify:
+  # - restart_sshd
+  tags: cat_all,cat2
+
+- name: Mask debug-shell.service (RHEL-08-040180)
+  ansible.builtin.systemd:
+    name: debug-shell.service
+    state: stopped
+    masked: true
+  when:
+  - rhel_08_040180 | bool
+  notify:
+  - reload_systemd
+  tags: cat_all,cat2
+
+- name: Reject IPv4 ICMP redirect messages (sysctl) (RHEL-08-040209)
+  ansible.posix.sysctl:
+    name: net.ipv4.conf.default.accept_redirects
+    value: '0'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040209 | bool
+  tags: cat_all,cat2
+
+- name: Reject IPv6 ICMP redirect messages (sysctl) (RHEL-08-040210)
+  ansible.posix.sysctl:
+    name: net.ipv6.conf.default.accept_redirects
+    value: '0'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040210 | bool
+  tags: cat_all,cat2
+
+- name: Do not send IPv4 ICMP redirect messages (sysctl) (RHEL-08-040220)
+  ansible.posix.sysctl:
+    name: net.ipv4.conf.all.send_redirects
+    value: '0'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040220 | bool
+  tags: cat_all,cat2
+
+- name: Do not respond to ICMP echos sent to a broadcast address (sysctl) (RHEL-08-040230)
+  ansible.posix.sysctl:
+    name: net.ipv4.icmp_echo_ignore_broadcasts
+    value: '1'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040230 | bool
+  tags: cat_all,cat2
+
+- name: Reject IPv4 source-routed packets (sysctl) (RHEL-08-040239)
+  ansible.posix.sysctl:
+    name: net.ipv4.conf.all.accept_source_route
+    value: '0'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040239 | bool
+  tags: cat_all,cat2
+
+- name: Do not forward IPv6 source-routed packets (sysctl) (RHEL-08-040240)
+  ansible.posix.sysctl:
+    name: net.ipv6.conf.all.accept_source_route
+    value: '0'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040240 | bool
+  tags: cat_all,cat2
+
+- name: Do not forward IPv4 source-routed packets by default (sysctl) (RHEL-08-040249)
+  ansible.posix.sysctl:
+    name: net.ipv4.conf.default.accept_source_route
+    value: '0'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040249 | bool
+  tags: cat_all,cat2
+
+- name: Do not forward IPv6 source-routed packets by default (sysctl) (RHEL-08-040250)
+  ansible.posix.sysctl:
+    name: net.ipv6.conf.default.accept_source_route
+    value: '0'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040250 | bool
+  tags: cat_all,cat2
+
+- name: Do not enable IPv4 forwarding unless system is a router (sysctl) (RHEL-08-040259)
+# NOTE! Disable this if you have Docker containers that need to communicate with each other on the same host
+  ansible.posix.sysctl:
+    name: net.ipv4.conf.all.forwarding
+    value: '0'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040259 | bool
+  tags: cat_all,cat2
+
+- name: Do not enable IPv6 forwarding unless system is a router (sysctl) (RHEL-08-040260)
+  ansible.posix.sysctl:
+    name: net.ipv6.conf.all.forwarding
+    value: '0'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040260 | bool
+  tags: cat_all,cat2
+
+- name: Do not accept router advertisements on all IPv6 interfaces (syctl) (RHEL-08-040261)
+  ansible.posix.sysctl:
+    name: net.ipv6.conf.all.accept_ra
+    value: '0'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040261 | bool
+  tags: cat_all,cat2
+
+- name: Do not accept router advertisements on all IPv6 interfaces by default (syctl) (RHEL-08-040262)
+  ansible.posix.sysctl:
+    name: net.ipv6.conf.default.accept_ra
+    value: '0'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040262 | bool
+  tags: cat_all,cat2
+
+- name: Do not allow ICMP redirects by default (sysctl) (RHEL-08-040270)
+  ansible.posix.sysctl:
+    name: net.ipv4.conf.default.send_redirects
+    value: '0'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040270 | bool
+  tags: cat_all,cat2
+
+- name: Ignore IPv4 ICMP redirect messages (sysctl) (RHEL-08-040279)
+  ansible.posix.sysctl:
+    name: net.ipv4.conf.all.accept_redirects
+    value: '0'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040279 | bool
+  tags: cat_all,cat2
+
+- name: Ignore IPv6 ICMP redirect messages (sysctl) (RHEL-08-040280)
+  ansible.posix.sysctl:
+    name: net.ipv6.conf.all.accept_redirects
+    value: '0'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040280 | bool
+  tags: cat_all,cat2
+
+- name: Disable access to network bpf syscall from unprivileged processes (sysctl) (RHEL-08-040281)
+  ansible.posix.sysctl:
+    name: kernel.unprivileged_bpf_disabled
+    value: '1'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040281 | bool
+  tags: cat_all,cat2
+
+- name: Restrict usage of ptrace to descendant processes (sysctl) (RHEL-08-040282)
+  ansible.posix.sysctl:
+    name: kernel.yama.ptrace_scope
+    value: '1'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040282 | bool
+  tags: cat_all,cat2
+
+- name: Restrict exposed kernel pointer addresses accesses (sysctl) (RHEL-08-040283)
+  ansible.posix.sysctl:
+    name: kernel.kptr_restrict
+    value: '1'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040283 | bool
+  tags: cat_all,cat2
+
+- name: Disable use of user namespaces (sysctl) (RHEL-08-040284)
+  ansible.posix.sysctl:
+    name: user.max_user_namespaces
+    value: '0'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040284 | bool
+  tags: cat_all,cat2
+
+- name: Use reverse path filtering on all IPv4 interfaces (sysctl) (RHEL-08-040285)
+  ansible.posix.sysctl:
+    name: net.ipv4.conf.all.rp_filter
+    value: '1'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040285 | bool
+  tags: cat_all,cat2
+
+- name: Enable BPF JIT compiler hardening (sysctl) (RHEL-08-040286)
+  ansible.posix.sysctl:
+    name: net.core.bpf_jit_harden
+    value: '2'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_040286 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of installed packages
+  ansible.builtin.package_facts:
+    manager: auto
+  when:
+  - rhel_08_040290 | bool
+  tags: cat_all,cat2
+
+- name: Determine if postfix is configured to reject untrusted connections (RHEL-08-040290)
+  ansible.builtin.shell: postconf | grep 'smtpd_client_restrictions ='
+  ignore_errors: true
+  failed_when: false
+  register: smtpd_client_restrictions
+  changed_when: smtpd_client_restrictions.stdout != "smtpd_client_restrictions = permit_mynetworks,reject"
+  when:
+  - "'postfix' in ansible_facts.packages"
+  - rhel_08_040290 | bool
+  tags: cat_all,cat2
+
+- name: Configure postfix to prevent unrestricted mail relaying (RHEL-08-040290)
+  ansible.builtin.command: postconf -e 'smtpd_client_restrictions = permit_mynetworks,reject'
+  when:
+  - smtpd_client_restrictions is changed
+  - rhel_08_040290 | bool
+  tags: cat_all,cat2
+
+- name: Gather list of installed packages
+  ansible.builtin.package_facts:
+    manager: auto
+  when:
+  - rhel_08_040320 | bool
+  tags: cat_all,cat2
+
+- name: The graphical display manager must not be installed on RHEL 8 unless approved (log only) (RHEL-08-040320)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-040320 (CAT II): GUI packages are installed on the system. These must be removed unless approved.'] }}"
+  when:
+  - ("'xorg-x11-server-Xorg' in ansible_facts.packages") or
+    ("'xorg-x11-server-common' in ansible_facts.packages") or
+    ("'xorg-x11-server-utils' in ansible_facts.packages") or
+    ("'xorg-x11-server-Xwayland' in ansible_facts.packages")
+  - rhel_08_040320 | bool
+  tags: cat_all,cat2
+
+- name: Determine default system target (RHEL-08-040321)
+  ansible.builtin.command: systemctl get-default
+  ignore_errors: true
+  failed_when: false
+  changed_when: default_target.stdout != "multi-user.target"
+  register: default_target
+  when:
+  - rhel_08_040321 | bool
+  tags: cat_all,cat2
+
+- name: The graphical display manager must not be the default target unless approved (log only) (RHEL-08-040321)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-040321 (CAT II): Unless approved, the default target must be multi-user.target.'] }}"
+  when:
+  - default_target is changed
+  - rhel_08_040321 | bool
+  tags: cat_all,cat2
+
+- name: Determine mode of network interfaces (RHEL-08-040330)
+  ansible.builtin.shell: ip link | grep -i promisc
+  ignore_errors: true
+  failed_when: false
+  changed_when: net_interfaces.stdout != ""
+  register: net_interfaces
+  when:
+  - rhel_08_040330 | bool
+  tags: cat_all,cat2
+
+- name: All network interfaces must have promiscuous mode set to off unless approved (log only) (RHEL-08-040330)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-040330 (CAT II): unless approved, promiscuous mode should be set to off on all network interfaces.'] }}"
+  when:
+  - net_interfaces is changed
+  - rhel_08_040330 | bool
+  tags: cat_all,cat2
+
+- name: Disable X11 forwarding SSHD (RHEL-08-040340)
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^X11Forwarding'
+    line: 'X11Forwarding no'
+  when:
+  - rhel_08_040340 | bool
+  # notify:
+  # - restart_sshd
+  tags: cat_all,cat2
+
+- name: Configure SSH daemon to prevent remote hosts from connecting to the proxy display (ssh) (RHEL-08-040341)
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^X11UseLocalhost'
+    line: 'X11UseLocalhost yes'
+  when:
+  - rhel_08_040341 | bool
+  # notify:
+  # - restart_sshd
+  tags: cat_all,cat2
+
+- name: Gather list of installed packages
+  ansible.builtin.package_facts:
+    manager: auto
+  when:
+  - rhel_08_040350 | bool
+  tags: cat_all,cat2
+
+- name: Configure TFTP daemon to operate in secure mode (RHEL-08-040350)
+  ansible.builtin.lineinfile:
+    path: /etc/xinetd.d/tftp
+    regexp: '^server_args'
+    line: 'server_args = -s /var/lib/tftpboot'
+  when:
+  - "'tftp-server' in ansible_facts.packages"
+  - rhel_08_040350 | bool
+  tags: cat_all,cat2
+
+- name: Remove gssproxy package (RHEL-08-040370)
+  ansible.builtin.dnf:
+    name: "gssproxy.x86_64"
+    state: absent
+  when:
+  - rhel_08_040370 | bool
+  tags: cat_all,cat2
+
+- name: Remove iprutils package (RHEL-08-040380)
+  ansible.builtin.dnf:
+    name: "iprutils.x86_64"
+    state: absent
+  when:
+  - rhel_08_040380 | bool
+  tags: cat_all,cat2
+
+- name: Remove tuned package (RHEL-08-040390)
+  ansible.builtin.dnf:
+    name: "tuned.noarch"
+    state: absent
+  when:
+  - rhel_08_040390 | bool
+  tags: cat_all,cat2
+
+#######################################################
+# DISA CAT III STIGS
+#######################################################
+- name: Ensure policycoreutils package is installed (RHEL-08-010171)
+  ansible.builtin.dnf:
+    name: "policycoreutils"
+    state: installed
+  when:
+  - rhel_08_010171 | bool
+  tags: cat_all,cat3
+
+- name: Enforce strong entropy (ssh) (RHEL-08-010292)
+  ansible.builtin.lineinfile:
+    path: /etc/sysconfig/sshd
+    regexp: '^SSH_USE_STRONG_RNG'
+    line: 'SSH_USE_STRONG_RNG=32'
+  when:
+  - rhel_08_010292 | bool
+  # notify:
+  # - restart_sshd
+  tags: cat_all,cat3
+
+- name: Restrict access to kernel message buffer (sysctl) (RHEL-08-010375)
+  ansible.posix.sysctl:
+    name: kernel.dmesg_restrict
+    value: '1'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_010375 | bool
+  tags: cat_all,cat3
+
+- name: Prevent kernel profiling by unprivileged users (sysctl) (RHEL-08-010376)
+  ansible.posix.sysctl:
+    name: kernel.perf_event_paranoid
+    value: '2'
+    state: present
+    sysctl_set: true # Verify token value with the sysctl command and set with -w if necessary
+    reload: true # Performs a sysctl -p command
+  when:
+  - rhel_08_010376 | bool
+  tags: cat_all,cat3
+
+- name: Remove software components after updated versions installed (RHEL-08-010440)
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/dnf.conf
+    regexp: '^clean_requirements_on_remove='
+    line: 'clean_requirements_on_remove=1'
+  when:
+  - rhel_08_010440 | bool
+  tags: cat_all,cat3
+
+- name: Ensure rng-tools package is installed (RHEL-08-010472)
+  ansible.builtin.dnf:
+    name: "rng-tools"
+    state: installed
+  when:
+  - rhel_08_010472 | bool
+  tags: cat_all,cat3
+
+- name: (INFO ONLY) Mount /var directory on separate filesystem/partition (RHEL-08-010540)
+  ansible.builtin.shell: mount | grep -e '\s\/var\s' # Search for " /var " separated by a single space on both sides
+  failed_when: false # Suppress output during task execution
+  changed_when: var_mount.rc != 0
+  register: var_mount
+  when:
+  - rhel_08_010540 | bool
+  tags: cat_all,cat3
+
+- name: Log findings for RHEL-08-010540 to log file (RHEL-08-010540)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010540 (CAT III): No evidence found that /var is mounted on a separate filesystem/partition.'] }}"
+  when:
+  - var_mount is changed # Log output only if /var was not found on separate partition
+  - rhel_08_010540 | bool
+  tags: cat_all,cat3
+
+- name: (INFO ONLY) Mount /var/log directory on separate filesystem/partition (RHEL-08-010541)
+  ansible.builtin.shell: mount | grep -e '\s\/var\/log\s' # Search for " /var/log " separated by a single space on both sides
+  failed_when: false # Suppress output during task execution
+  changed_when: var_log_mount.rc != 0
+  register: var_log_mount
+  when:
+  - rhel_08_010541 | bool
+  tags: cat_all,cat3
+
+- name: Log findings for RHEL-08-010541 to log file (RHEL-08-010541)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010541 (CAT III): No evidence found that /var/log is mounted on a separate filesystem/partition.'] }}"
+  when:
+  - var_log_mount is changed # Log output only if /var/log was not found on separate partition
+  - rhel_08_010541 | bool
+  tags: cat_all,cat3
+
+- name: (INFO ONLY) Mount /var/log/audit directory on separate filesystem/partition (RHEL-08-010542)
+  ansible.builtin.shell: mount | grep -e '\s\/var\/log\/audit\s' # Search for " /var/log/audit " separated by a single space on both sides
+  failed_when: false # Suppress output during task execution
+  changed_when: var_log_audit_mount.rc != 0
+  register: var_log_audit_mount
+  when:
+  - rhel_08_010542 | bool
+  tags: cat_all,cat3
+
+- name: Log findings for RHEL-08-010542 to log file (RHEL-08-010542)
+  ansible.builtin.set_fact:
+    log_var: "{{ log_var + ['- RHEL-08-010542 (CAT III): No evidence found that /var/log/audit is mounted on a separate filesystem/partition.'] }}"
+  when:
+  - var_log_audit_mount is changed # Log output only if /var/log/audit was not found on separate partition
+  - rhel_08_010542 | bool
+  tags: cat_all,cat3
+
+- name: Limit the number of concurrent sessions to ten for all accounts/account types (limits.d) (RHEL-08-020024)
+  ansible.builtin.lineinfile:
+    path: /etc/security/limits.d/RHEL-08-020024.conf
+    regexp: '^\*\s+hard\s+maxlogins.*'
+    line: '* hard maxlogins 10'
+    create: true
+    seuser: system_u
+    serole: object_r
+    setype: etc_t
+    selevel: s0
+  ignore_errors: true
+  failed_when: false
+  when:
+  - rhel_08_020024 | bool
+  tags: cat_all,cat3
+
+- name: Prevent users from disabling session control mechanisms (tmux) (RHEL-08-020042)
+  ansible.builtin.lineinfile:
+    path: /etc/shells
+    regexp: '.*tmux.*'
+    state: absent
+  when:
+  - rhel_08_020042 | bool
+  tags: cat_all,cat3
+
+- name: Enable enriched logging (auditd) (RHEL-08-030063)
+  ansible.builtin.lineinfile:
+    path: /etc/audit/auditd.conf
+    regexp: '^log_format='
+    line: 'log_format = ENRICHED'
+  when:
+  - rhel_08_030063 | bool
+  notify:
+  - restart_auditd  
+  tags: cat_all,cat3
+
+- name: Determine if "audit=1" exists in /etc/default/grub (RHEL-08-030601)
+  ansible.builtin.command: grep -c "audit=1" /etc/default/grub
+  ignore_errors: true
+  register: audit_default
+  failed_when: false
+  changed_when:
+  - audit_default.rc != 0
+  when:
+  - rhel_08_030601 | bool
+  tags: cat_all,cat3
+
+- name: Determine if "audit=1" exists in /etc/grub.d/ (RHEL-08-030601)
+  ansible.builtin.shell: grep -c "audit=1" /etc/grub.d/*
+  ignore_errors: true
+  register: audit_grubd
+  failed_when: false
+  changed_when:
+  - audit_grubd.rc != 0
+  when:
+  - rhel_08_030601 | bool
+  tags: cat_all,cat3
+
+- name: Enable auditing (grub) (RHEL-08-030601)
+  ansible.builtin.lineinfile:
+    path: /etc/grub.d/RHEL-08-030601
+    regexp: '^GRUB_CMDLINE_LINUX='
+    line: 'GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX audit=1"'
+    create: true
+    owner: root
+    group: root
+    mode: '0755'
+  when: # All of these conditions must be true
+  - rhel_08_030601 | bool
+  - audit_default is changed
+  - audit_grubd is changed
+  - is_bios.stat.exists
+  notify:
+  - regen_grub_cfg_bios
+  - grubby_audit
+  tags: cat_all,cat3
+
+- name: Enable auditing (grub) (RHEL-08-030601)
+  ansible.builtin.lineinfile:
+    path: /etc/grub.d/RHEL-08-030601
+    regexp: '^GRUB_CMDLINE_LINUX='
+    line: 'GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX audit=1"'
+    create: true
+    owner: root
+    group: root
+    mode: '0755'
+  when: # All of these conditions must be true
+  - rhel_08_030601 | bool
+  - audit_default is changed
+  - audit_grubd is changed
+  - is_efi.stat.exists
+  notify:
+  - regen_grub_cfg_efi
+  - grubby_audit
+  tags: cat_all,cat3
+
+- name: Determine if "audit_backlog_limit=8192" exists in /etc/default/grub (RHEL-08-030602)
+  ansible.builtin.command: grep -c "audit_backlog_limit=8192" /etc/default/grub
+  ignore_errors: true
+  register: audit_backlog_default
+  failed_when: false
+  changed_when:
+  - audit_backlog_default.rc != 0
+  when:
+  - rhel_08_030602 | bool
+  tags: cat_all,cat3
+
+- name: Determine if "audit_backlog_limit=8192" exists in /etc/grub.d/ (RHEL-08-030602)
+  ansible.builtin.shell: grep -c "audit_backlog_limit=8192" /etc/grub.d/*
+  ignore_errors: true
+  register: audit_backlog_grubd
+  failed_when: false
+  changed_when:
+  - audit_backlog_grubd.rc != 0
+  when:
+  - rhel_08_030602 | bool
+  tags: cat_all,cat3
+
+- name: Configure audit backlog limit (grub) (RHEL-08-030602)
+  ansible.builtin.lineinfile:
+    path: /etc/grub.d/RHEL-08-030602
+    regexp: '^GRUB_CMDLINE_LINUX='
+    line: 'GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX audit_backlog_limit=8192"'
+    create: true
+    owner: root
+    group: root
+    mode: '0755'
+  when: # All of these conditions must be true
+  - rhel_08_030602 | bool
+  - audit_backlog_default is changed
+  - audit_backlog_grubd is changed
+  - is_bios.stat.exists
+  notify:
+  - regen_grub_cfg_bios
+  - grubby_audit_backlog
+  tags: cat_all,cat3
+
+- name: Configure audit backlog limit (grub) (RHEL-08-030602)
+  ansible.builtin.lineinfile:
+    path: /etc/grub.d/RHEL-08-030602
+    regexp: '^GRUB_CMDLINE_LINUX='
+    line: 'GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX audit_backlog_limit=8192"'
+    create: true
+    owner: root
+    group: root
+    mode: '0755'
+  when: # All of these conditions must be true
+  - rhel_08_030602 | bool
+  - audit_backlog_default is changed
+  - audit_backlog_grubd is changed
+  - is_efi.stat.exists
+  notify:
+  - regen_grub_cfg_efi
+  - grubby_audit_backlog
+  tags: cat_all,cat3
+
+- name: Gather list of installed packages
+  ansible.builtin.package_facts:
+    manager: auto
+  when:
+  - rhel_08_030603 | bool
+  tags: cat_all,cat3
+
+- name: Enable audit logging of USBGuard daemon; N/A if USBGuard is not installed (RHEL-08-030603)
+  ansible.builtin.lineinfile:
+    path: /etc/usbguard/usbguard-daemon.conf
+    regexp: '^AuditBackend='
+    line: 'AuditBackend=LinuxAudit'
+  when:
+  - "'usbguard' in ansible_facts.packages"
+  - rhel_08_030603 | bool
+  tags: cat_all,cat3
+
+- name: Gather list of installed packages
+  ansible.builtin.package_facts:
+    manager: auto
+  when:
+  - rhel_08_030741 | bool
+  tags: cat_all,cat3
+
+- name: Disable the chrony daemon from acting as a server (RHEL-08-030741)
+  ansible.builtin.lineinfile:
+    path: /etc/chrony.conf
+    regexp: '^port'
+    line: 'port 0'
+  when:
+  - "'chronyd' in ansible_facts.packages"        
+  - rhel_08_030741 | bool
+  tags: cat_all,cat3
+
+- name: Gather list of installed packages
+  ansible.builtin.package_facts:
+    manager: auto
+  when:
+  - rhel_08_030742 | bool
+  tags: cat_all,cat3
+
+- name: Disable network management of the chrony daemon (RHEL-08-030742)
+  ansible.builtin.lineinfile:
+    path: /etc/chrony.conf
+    regexp: '^cmdport'
+    line: 'cmdport 0'
+  when:
+  - "'chronyd' in ansible_facts.packages"
+  - rhel_08_030742 | bool
+  tags: cat_all,cat3
+
+- name: Determine if "pti=on" exists in /etc/default/grub (RHEL-08-040004)
+  ansible.builtin.command: grep -c "pti=on" /etc/default/grub
+  ignore_errors: true
+  register: pti_default
+  failed_when: false
+  changed_when:
+  - pti_default.rc != 0
+  when:
+  - rhel_08_040004 | bool
+  tags: cat_all,cat3
+
+- name: Determine if "pti=on" exists in /etc/grub.d/ (RHEL-08-040004)
+  ansible.builtin.shell: grep -c "pti=on" /etc/grub.d/*
+  ignore_errors: true
+  register: pti_grubd
+  failed_when: false
+  changed_when:
+  - pti_grubd.rc != 0
+  when:
+  - rhel_08_040004 | bool
+  tags: cat_all,cat3
+
+- name: Enable kernel page-table isolation (grub) (RHEL-08-040004)
+  ansible.builtin.lineinfile:
+    path: /etc/grub.d/RHEL-08-040004
+    regexp: '^GRUB_CMDLINE_LINUX='
+    line: 'GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX pti=on"'
+    create: true
+    owner: root
+    group: root
+    mode: '0755'
+  when: # All of these conditions must be true
+  - rhel_08_040004 | bool
+  - pti_default is changed
+  - pti_grubd is changed
+  - is_bios.stat.exists
+  notify:
+  - regen_grub_cfg_bios
+  - grubby_pti
+  tags: cat_all,cat3
+
+- name: Enable kernel page-table isolation (grub) (RHEL-08-040004)
+  ansible.builtin.lineinfile:
+    path: /etc/grub.d/RHEL-08-040004
+    regexp: '^GRUB_CMDLINE_LINUX='
+    line: 'GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX pti=on"'
+    create: true
+    owner: root
+    group: root
+    mode: '0755'
+  when: # All of these conditions must be true
+  - rhel_08_030602 | bool
+  - pti_default is changed
+  - pti_grubd is changed
+  - is_efi.stat.exists
+  notify:
+  - regen_grub_cfg_efi
+  - grubby_pti
+  tags: cat_all,cat3
+
+- name: Disable the asynchronous transfer mode (ATM) protocol (modprobe.d) (requires reboot) (RHEL-08-040021)
+  ansible.builtin.lineinfile:
+    path: /etc/modprobe.d/blacklist.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    create: true
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: modules_conf_t
+    selevel: s0
+  with_items:
+  - { regexp: '^install atm', line: 'install atm /bin/false' }
+  - { regexp: '^blacklist atm', line: 'blacklist atm' } 
+  when:
+  - rhel_08_040021 | bool
+  tags: cat_all,cat3
+
+- name: Disable the controller area network (CAN) protocol (modprobe.d) (requires reboot) (RHEL-08-040022)
+  ansible.builtin.lineinfile:
+    path: /etc/modprobe.d/blacklist.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    create: true
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: modules_conf_t
+    selevel: s0
+  with_items:
+  - { regexp: '^install can', line: 'install can /bin/false' }
+  - { regexp: '^blacklist can', line: 'blacklist can' } 
+  when:
+  - rhel_08_040022 | bool
+  tags: cat_all,cat3
+
+- name: Disable the stream control transmission (SCTP) protocol (modprobe.d) (requires reboot) (RHEL-08-040023)
+  ansible.builtin.lineinfile:
+    path: /etc/modprobe.d/blacklist.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    create: true
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: modules_conf_t
+    selevel: s0
+  with_items:
+  - { regexp: '^install sctp', line: 'install sctp /bin/false' }
+  - { regexp: '^blacklist sctp', line: 'blacklist sctp' } 
+  when:
+  - rhel_08_040023 | bool
+  tags: cat_all,cat3
+
+- name: Disable the transparent inter-process communication (TIPC) protocol (modprobe.d) (requires reboot) (RHEL-08-040024)
+  ansible.builtin.lineinfile:
+    path: /etc/modprobe.d/blacklist.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    create: true
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: modules_conf_t
+    selevel: s0
+  with_items:
+  - { regexp: '^install tipc', line: 'install tipc /bin/false' }
+  - { regexp: '^blacklist tipc', line: 'blacklist tipc' } 
+  when:
+  - rhel_08_040024 | bool
+  tags: cat_all,cat3
+
+- name: Disable mounting of cramfs (modprobe.d) (requires reboot) (RHEL-08-040025)
+  ansible.builtin.lineinfile:
+    path: /etc/modprobe.d/blacklist.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    create: true
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: modules_conf_t
+    selevel: s0
+  with_items:
+  - { regexp: '^install cramfs', line: 'install cramfs /bin/false' }
+  - { regexp: '^blacklist cramfs', line: 'blacklist cramfs' } 
+  when:
+  - rhel_08_040025 | bool
+  tags: cat_all,cat3
+
+- name: Disable IEEE 1394 (FireWire) support (modprobe.d) (requires reboot) (RHEL-08-040026)
+  ansible.builtin.lineinfile:
+    path: /etc/modprobe.d/blacklist.conf
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    create: true
+    owner: root
+    group: root
+    mode: '0644'
+    seuser: system_u
+    serole: object_r
+    setype: modules_conf_t
+    selevel: s0
+  with_items:
+  - { regexp: '^install firewire-core', line: 'install firewire-core /bin/false' }
+  - { regexp: '^blacklist firewire-core', line: 'blacklist firewire-core' } 
+  when:
+  - rhel_08_040026 | bool
+  tags: cat_all,cat3
+
+- name: Configure aide.conf (RHEL-08-030650, RHEL-08-040300, & RHEL-08-040310)
+  ansible.builtin.copy:
+    src: aide.conf
+    dest: /etc/aide.conf
+    backup: true
+    owner: root
+    group: root
+    mode: '0600'
+    seuser: system_u
+    serole: object_r
+    setype: etc_t
+    selevel: s0
+  when:
+  - (rhel_08_030650 | bool) or (rhel_08_040300 | bool) or (rhel_08_040310 | bool)
+  notify:
+  - aide_init
+  tags: cat_all,cat2,cat3
+
+#######################################################
+# Start of Added Supplemental Tasks
+#######################################################
+- name: Add cor pattern sysctl (RHEL-08-010671)
+  ansible.posix.sysctl:
+    name: kernel.core_pattern
+    value: 1
+    reload: true
+  when:
+  - rhel_08_010671 | bool
+  tags: cat_all,cat2
+
+- name:  Add yama sysctl (RHEL-08-040282)
+  ansible.posix.sysctl:
+    name: kernel.yama.ptrace_scope
+    value: 1
+    reload: true
+  when:
+  - rhel_08_040282 | bool
+  tags: cat_all,cat2
+
+- name: Look for all user home directories   (RHEL-08-010730)
+  ansible.builtin.command: awk -F':' '$3 >= 1000 && $3 < 65534 {print$6}' /etc/passwd
+  register: home_dirs
+  when:
+  - rhel_08_010730 | bool
+  tags: cat_all,cat2
+
+- name: Ensure Permissions are correct (RHEL-08-010730)
+  ansible.builtin.find:
+    paths: "{{ item }}"
+    patterns: ".*"
+    file_type: file
+  with_items: "{{ home_dirs.stdout_lines }}"
+  register: init_files
+  when:
+  - rhel_08_010730 | bool
+  tags: cat_all,cat2
+
+- name: Changing permissions in /home/<USER>   (RHEL-08-010730)
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: "0740"
+  with_items: "{{ init_files.results | map(attribute='files') | flatten }}"
+  register: init_files
+  when:
+  - rhel_08_010730 | bool
+  tags: cat_all,cat2
+
+- name: Finding hidden /root and /home files (RHEL-08-010770)
+  ansible.builtin.find:
+    paths: "/root"
+    use_regex: true
+    patterns: 
+      - ".*.bash_profile"
+      - ".*.bashrc"
+      - ".*.tcshrc"
+      - ".*.profile"
+      - ".*.zshrc"
+      - ".*.bash_logout"
+      - ".*.cshrc"
+    file_type: file
+    recurse: true
+    hidden: true
+  become_user: root
+  register: hidden_root_files
+  when: 
+  - rhel_08_010770 |bool
+  tags: cat_all,cat2
+
+- name: Filter hidden files that do not have 0740 permissions (RHEL-08-010770)
+  ansible.builtin.set_fact: 
+    files_to_change: "{{ hidden_root_files.files | selectattr('mode', 'ne', '0740') | map(attribute='path') | list }}"
+  when: 
+  - rhel_08_010770 |bool
+  tags: cat_all,cat2
+  
+- name: Change permissions to 0740 RHEL-08-010770
+  ansible.builtin.file: 
+    path: "{{ item  }}"
+    mode: '0740'
+  with_items: "{{ files_to_change }}"
+  when: 
+  - files_to_change | length > 0
+  - rhel_08_010770 |bool
+  tags: cat_all,cat2
+
+- name: Prompt user to confirm whether to proceed NTP (RHEL-08-030740)
+  ansible.builtin.pause:
+    prompt: |
+      ----------------------------------------------------------------------------------------------------------------------------------------------------
+      Do you want to configure NTP?  this will require you to input your ntp server. To find which time server you should use, GO NTP.
+
+      Type 'yes' or 'no' and hit 'ENTER'
+      ----------------------------------------------------------------------------------------------------------------------------------------------------
+  register: ntp_response
+  delegate_to: all
+  run_once: true
+  when:
+  - rhel_08_030740 | bool
+  tags: cat_all,cat2
+  
+- name: Set 'proceed_with_ntp' Variable (RHEL-08-030740)
+  ansible.builtin.set_fact:
+    proceed_with_ntp: "{{ ntp_response.user_input | lower == 'yes' }}"
+  delegate_to: all
+  run_once: true
+  when:
+  - rhel_08_030740 | bool
+  tags: cat_all,cat2
+
+- name: Configure ntp (RHEL-08-030740)
+  block: 
+  - name: Prompt user to enter NTP address (RHEL-08-030740)
+    ansible.builtin.pause:
+      prompt: |
+        ----------------------------------------------------------------------------------------------------------------------------------------------------
+        Please type the ntp server name and hit 'ENTER'
+        
+        Example: example.pool.ntp.org
+        ----------------------------------------------------------------------------------------------------------------------------------------------------
+    register: ntp_server_response
+    delegate_to: all
+    run_once: true
+
+  - name: Set 'ntp_server' Variable (RHEL-08-030740)
+    ansible.builtin.set_fact: 
+      ntp_server: "{{ ntp_server_response.user_input }}"
+    register: ntp_input
+    delegate_to: all
+    delegate_facts: true
+
+  - name: Add ntp configuration (RHEL-08-030740)
+    ansible.builtin.lineinfile: 
+      path: /etc/chrony.conf
+      line: server  {{ ntp_server_response.user_input }}  iburst maxpoll 16
+      state: present
+  
+  - name: Restart the ntp service (RHEL-08-030740)
+    ansible.builtin.service:
+      name: chronyd
+      state: restarted
+      enabled: yes
+
+  - name: Turn on ntp (RHEL-08-030740)
+    ansible.builtin.command: sudo timedatectl set-ntp true
+  when: 
+  # - proceed_with_ntp
+  - rhel_08_030740 | bool
+  tags: cat_all,cat2
+
+- name: Set up firewall settings  (RHEL-08-040090)
+  ansible.builtin.dnf:
+    name: firewalld
+    state: latest
+  when:
+  - rhel_08_040090 | bool
+  tags: cat_all,cat2
+
+- name: Start firewall service (RHEL-08-040090)
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: true
+  when:
+  - rhel_08_040090 | bool
+  tags: cat_all,cat2
+
+- name: Add ssh to drop zone (RHEL-08-040090)
+  ansible.posix.firewalld:
+    service: ssh
+    state: enabled
+    permanent: true
+    zone: drop
+    immediate: true
+  when:
+  - rhel_08_040090 | bool
+  tags: cat_all,cat2
+
+- name: Apply firewall settings for drop zone (RHEL-08-040090)
+  ansible.builtin.lineinfile:
+    path: /etc/firewalld/firewalld.conf
+    regexp: "DefaultZone=" 
+    line: "DefaultZone=drop"
+    state: present
+  when:
+  - rhel_08_040090 | bool
+  tags: cat_all,cat2
+
+- name: Restart firewalld (RHEL-08-040090)
+  ansible.builtin.service:
+    name: firewalld
+    state: restarted
+  when:
+  - rhel_08_040090 | bool
+  tags: cat_all,cat2
+
+- name: Enable reverse path filtering (RHEL-08-040090)
+  ansible.posix.sysctl:
+    name: net.ipv4.conf.default.rp_filter
+    value: 1
+    reload: true
+  when:
+  - rhel_08_040090 | bool
+  tags: cat_all,cat2
+  
+- name: Load settings from config files (RHEL-08-040090)
+  ansible.builtin.command: sudo sysctl --system
+  when:
+  - rhel_08_040090 | bool
+  tags: cat_all,cat2,always
+
+- name: Apply crypto policies  (RHEL-08-010291)
+  ansible.builtin.lineinfile:
+    path: /etc/crypto-policies/back-ends/openssh.config
+    regexp: 'Ciphers'
+    line: "Ciphers aes256-gcm@openssh.com,aes256-ctr,aes256-gcm@openssh.com,chacha20-poly1305@openssh.com,aes256-ctr,aes128-gcm@openssh.com,aes128-ctr"
+    state: present
+  when:
+  - ssh_crypto_policy | bool
+  tags: cat_all,cat2
+
+- name: Add crypto policies for macs (RHEL-08-010290)
+  ansible.builtin.lineinfile:
+    path: /etc/sysconfig/sshd
+    regexp: '^MACs'
+    line: "MACs hmac-sha2-256-etm@openssh.com,hmac-sha1-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha2-256,hmac-sha1,umac-128@openssh.com,hmac-sha2-512"
+    state: present
+  when:
+  - ssh_crypto_policy | bool
+  tags: cat_all,cat2
+
+- name: Adding password policies (RHEL-08-020210)
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^PASS_MAX_DAYS'
+    line: "PASS_MAX_DAYS 60"
+    state: present
+  when:
+  - rhel_08_020210 | bool
+  tags: cat_all,cat2  
+
+      #- name: set max password for all existing users
+      #  ansible.builtin.shell: |
+      #    for user in $(awk -F: '{if ($3 >= 1000 && $1 != "nobody") print $1 }' /etc/passwd); do
+      #      chage --maxdays 60 $user
+      #    done
+
+- name: Adding limit to concurrent sessions (RHEL-08-020180)
+  ansible.builtin.lineinfile:
+    path: /etc/security/limits.conf
+    regexp: '^\\*\\s+hard\\s+maxlogins'
+    line: '* hard maxlogins 3'
+    state: present
+  when:
+  - rhel_08_020180 | bool
+  tags: cat_all,cat2
+
+- name: Finding all files in pam.d (RHEL-08-020102)
+  ansible.builtin.find:
+    paths: /etc/pam.d
+    recurse: yes
+    file_type: file
+  register: found_files
+  when:
+  - rhel_08_020102 | bool
+  tags: cat_all,cat2  
+
+- name: Adding limit to concurrent sessions (RHEL-08-020102)
+  ansible.builtin.lineinfile:
+    path: "{{ item.path }}"
+    regexp: '^\\password\\s+required\\s+pam_pwquality.so'
+    line: 'password required pam_pwquality.so retry=3'
+    state: present
+  loop: "{{ found_files.files }}"
+  when:
+  - rhel_08_020102 | bool
+  tags: cat_all,cat2  
+  
+- name: Adding password retries (RHEL-08-020221)
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/password-auth
+    regexp: '^\\password\\s+required\\s+pam_pwhistory.so\\s+use_authtok\\s+remember'
+    line: 'password required pam_pwhistory.so use_authtok remember=10 retry=3'
+    state: present
+  when:
+  - rhel_08_020221 | bool
+  tags: cat_all,cat2
+
+- name: Adding password retries in system-auth (RHEL-08-020221)
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/system-auth
+    regexp: '^\\password\\s+required\\s+pam_pwhistory.so\\s+use_authtok\\s+remember'
+    line: 'password required pam_pwhistory.so use_authtok remember=10 retry=3'
+    state: present
+  when:
+  - rhel_08_020221 | bool
+  tags: cat_all,cat2
+
+- name: Adding password retries (RHEL-08-020220)
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/password-auth
+    regexp: '^\\password\\s+required\\s+pam_pwhistory.so\\s+use_authtok\\s+remember'
+    line: 'password required pam_pwhistory.so use_authtok remember=10 retry=3'
+    state: present
+  when:
+  - rhel_08_020220 | bool
+  tags: cat_all,cat2
+
+- name: Adding password retries in system-auth (RHEL-08-020220)
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/system-auth
+    regexp: '^\\password\\s+required\\s+pam_pwhistory.so\\s+use_authtok\\s+remember'
+    line: 'password required pam_pwhistory.so use_authtok remember=10 retry=3'
+    state: present
+  when:
+  - rhel_08_020220 | bool
+  tags: cat_all,cat2
+
+      #- name: remove NOPASSWD in /etc/sudoers
+      #  ansible.builtin.lineinfile:
+      #    path: /etc/sudoers
+      #    regexp: '^(?!#).*NOPASSWD'
+      #    line: '# \g<0>'
+      #    backrefs: true
+      #    validate: '/usr/sbin/visudo -cf %s'
+
+      #- name: find NOPASSWD in /etc/sudoers.d/*
+      #  ansible.builtin.find:
+      #    paths: /etc/sudoers.d
+      #    patterns: '*'
+      #    recurse: yes
+      #  register: sudoers_d_files
+
+      #- name: remove NOPASSWD in /etc/sudoers
+      #  ansible.builtin.lineinfile:
+      #    path: "{{ item.path }}"
+      #    regexp: '^(?!#).*NOPASSWD'
+      #    line: '# \g<0>'
+      #    backrefs: true
+      #    validate: '/usr/sbin/visudo -cf %s'
+      #  loop: "{{ sudoers_d_files.files }}"
+
+- name: Change permissions to ssd certs.conf (RHEL-08-020090)
+  ansible.builtin.file:
+    path: /etc/sssd/conf.d
+    state: directory
+    mode: '0755'
+  when:
+  - rhel_08_020090 | bool
+  tags: cat_all,cat2
+
+- name: Add or update certificate verification line (RHEL-08-020090)
+  ansible.builtin.lineinfile:
+    path: /etc/sssd/conf.d/certificate_verification.conf
+    line: 'certificate_verification = osp_dgst=sha512'
+    create: true
+    state: present
+    mode: '0600'
+    owner: root
+    group: root 
+  when:
+  - rhel_08_020090 | bool
+  tags: cat_all,cat2
+
+- name: Copy basic sssd.conf (RHEL-08-020090)
+  ansible.builtin.copy: 
+    src: templates/basic_sssd.conf
+    dest: /etc/sssd/sssd.conf
+    mode: '0600'
+    owner: root
+    group: root 
+    force: false
+  when:
+  - rhel_08_020090 | bool
+  tags: cat_all,cat2
+
+- name: Update certificate certificate verification line in sssd.conf (RHEL-08-020090)
+  ansible.builtin.lineinfile:
+    path: /etc/sssd/sssd.conf
+    regexp: "certificate_verification"
+    line: "certificate_verification = osp_dgst = sha512"
+    mode: '0600'
+    owner: root
+    group: root
+    create: yes
+  when:
+  - rhel_08_020090 | bool
+  tags: cat_all,cat2
+
+- name: Turn sssd to permissive mode (RHEL-08-020090)
+  ansible.builtin.lineinfile:
+    path: /etc/sssd/sssd.conf
+    line: "ad_gpo_access_control = permissive" 
+    insertbefore: BOF
+  when:
+  - rhel_08_020090 | bool
+  tags: cat_all,cat2
+
+- name: Restart sssd service (RHEL-08-020090)
+  ansible.builtin.service:
+    name: sssd
+    state: restarted
+  ignore_errors: true
+  when:
+  - rhel_08_020090 | bool
+  tags: cat_all,cat2
+  
+- name: Prompt user if using Smart Card authentication (RHEL-08-020250)
+  ansible.builtin.pause:
+    prompt: |
+      ------------------------------------------------------------------
+      Is your system using Smart Card Authentication?
+      
+      Please type 'yes' or 'no' and hit 'ENTER'
+      ------------------------------------------------------------------
+  delegate_to: all
+  run_once: true
+  register: pcscd_response
+  when:
+  - rhel_08_020250 | bool
+  tags: cat_all,cat2
+
+- name: Set 'enable_pcscd' Variable  (RHEL-08-020250)
+  ansible.builtin.set_fact:
+    enable_pcscd: "{{ pcscd_response.user_input | lower == 'yes' }}"
+  delegate_to: all
+  run_once: true
+  when:
+  - rhel_08_020250 | bool
+  tags: cat_all,cat2  
+
+- name: Configure pcscd service (RHEL-08-020250)
+  block:
+    - name: Install dnf packages for pcscd (RHEL-08-020250)
+      ansible.builtin.dnf:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - pcsc-lite
+        - pcsc-lite-libs
+        - pcsc-lite-ccid
+        - opensc
+
+    - name: Start pcscd (RHEL-08-020250)
+      ansible.builtin.service:
+        name: pcscd
+        state: started 
+        enabled: true  
+  when: 
+  # - enable_pcscd
+  - rhel_08_020250 | bool
+  tags: cat_all,cat2
+
+# - name: Prompt user to confirm whether to proceed FAPOLICY (RHEL-08-040136)
+#   ansible.builtin.pause:
+#     prompt: |
+#       ----------------------------------------------------------------------------------------------------------------------------------------------------
+#        Enabling the fapolicy service can enforce application whitelisting policies, which may block ansible or other processes if not configured correctly.
+#        Ensure that necessary rules are in place before starting the service.
+#        Do you want to proceed with enabling fapolicyd? (fapolicy will be set in permissive mode once this series of tasks are ran) 
+       
+#        Please type 'yes' or 'no' and hit 'ENTER' 
+#        ----------------------------------------------------------------------------------------------------------------------------------------------------
+#   register: fapolicyd_response
+#   delegate_to: all
+#   run_once: true
+#   when:
+#   - rhel_08_040136 | bool
+#   tags: cat_all,cat2
+  
+# - name: Set 'proceed_with_fapolicyd' Variable (RHEL-08-040136)
+#   ansible.builtin.set_fact:
+#     proceed_with_fapolicyd: "{{ fapolicyd_response.user_input | lower == 'yes' }}"
+#   delegate_to: all
+#   run_once: true
+#   when:
+#   - rhel_08_040136 | bool
+#   tags: cat_all,cat2
+
+- name: Configure fapolicy (RHEL-08-040136)
+  block:  
+    - name: Install fapolicd package (RHEL-08-040136)
+      ansible.builtin.package:
+        name: fapolicyd
+        state: present
+
+    - name:  Set fapolicyd to permissive mode (RHEL-08-040136)
+      ansible.builtin.lineinfile:
+        path: /etc/fapolicyd/fapolicyd.conf
+        regexp: 'permissive '
+        line: 'permissive = 1'
+
+    - name: Start fapolicyd Service
+      ansible.builtin.service:
+        name: fapolicyd
+        enabled: true
+        state: started
+  when: 
+  - rhel_08_040136 | bool
+  tags: cat_all,cat2
+
+#######################################################
+# Start of Partition Related Tasks
+
+# Mount /boot with nosuid (RHEL-08-010571)
+
+- name: Check if separate partition for /boot exists (RHEL-08-010571)
+  ansible.builtin.shell:
+    cmd: grep '\s/boot\s' /etc/fstab | awk '{print $1}'
+  ignore_errors: true
+  register: boot_block_device
+  when:
+  - fstab_boot | bool
+  tags: cat_all,cat2
+
+- name: Find fstype for /boot block device (RHEL-08-010571)
+  ansible.builtin.shell:
+    cmd: grep '\s/boot\s' /etc/fstab | awk '{print $3}'
+  ignore_errors: true
+  register: boot_fstype
+  when:
+  - boot_block_device.stdout | length > 0
+  - fstab_boot | bool
+  tags: cat_all,cat2
+
+- name: Find mount_options for /boot block device (RHEL-08-010571)
+  ansible.builtin.shell:
+    cmd: grep '\s/boot\s' /etc/fstab | awk '{print $4}'
+  ignore_errors: true
+  register: boot_mount_options
+  when:
+  - boot_block_device.stdout | length > 0
+  - fstab_boot | bool
+  tags: cat_all,cat2  
+
+- name: Check to see if 'defaults' is in mount_options for /boot block device (RHEL-08-010571)
+  ansible.builtin.shell:
+    cmd: grep '\s/boot\s' /etc/fstab | awk '{print $4}' | grep 'defaults'
+  ignore_errors: true
+  register: boot_defaults_exists
+  when:
+  - boot_block_device.stdout | length > 0
+  - fstab_boot | bool
+  tags: cat_all,cat2  
+
+- name: Check to see if 'nosuid' is already in mount_options for /boot block device (RHEL-08-010571)
+  ansible.builtin.shell:
+    cmd: grep '\s/boot\s' /etc/fstab | awk '{print $4}' | grep 'nosuid'
+  ignore_errors: true
+  register: boot_nosuid_exists
+  when:
+  - boot_block_device.stdout | length > 0
+  - fstab_boot | bool
+  tags: cat_all,cat2  
+
+- name: Mount /boot with nosuid (RHEL-08-010571)
+  block:
+  - name: defaults is the only option set on /boot, set nosuid
+    ansible.posix.mount:
+      path: /boot
+      opts: nosuid
+      state: present
+      src: "{{ boot_block_device.stdout }}"
+      fstype: "{{ boot_fstype.stdout }}"
+    when:
+    - boot_defaults_exists.stdout == 'defaults'
+
+  - name: nosuid option already exists along with other options
+    ansible.posix.mount:
+      path: /boot
+      opts: "{{ boot_mount_options.stdout }}"
+      state: present
+      src: "{{ boot_block_device.stdout }}"
+      fstype: "{{ boot_fstype.stdout }}"
+    when:
+    - boot_nosuid_exists.stdout | length > 0
+
+  - name: Other options other than defaults exists, appending nosuid
+    ansible.posix.mount:
+      path: /boot
+      opts: "{{ boot_mount_options.stdout }},nosuid"
+      state: present
+      src: "{{ boot_block_device.stdout }}"
+      fstype: "{{ boot_fstype.stdout }}"
+    when:
+    - boot_defaults_exists.stdout | length == 0
+    - boot_nosuid_exists.stdout | length == 0
+  when:
+  - boot_block_device.stdout | length > 0
+  - fstab_boot | bool
+  tags: cat_all,cat2
+
+- name: Check to see if 'nodev' is already in mount_options for /boot block device (RHEL-08-010580)
+  ansible.builtin.shell:
+    cmd: grep '\s/boot\s' /etc/fstab | awk '{print $4}' | grep 'nodev'
+  ignore_errors: true
+  register: boot_nodev_exists
+  when:
+  - boot_block_device.stdout | length > 0
+  - fstab_boot | bool
+  tags: cat_all,cat2  
+
+- name: Mount /boot with nodev (RHEL-08-010580)
+  block:
+  - name: defaults is the only option set on /boot, set nosuid & nodev
+    ansible.posix.mount:
+      path: /boot
+      opts: nosuid,nodev
+      state: present
+      src: "{{ boot_block_device.stdout }}"
+      fstype: "{{ boot_fstype.stdout }}"
+    when:
+    - boot_defaults_exists.stdout == 'defaults'
+
+  - name: nodev option already exists along with other options
+    ansible.posix.mount:
+      path: /boot
+      opts: "{{ boot_mount_options.stdout }}"
+      state: present
+      src: "{{ boot_block_device.stdout }}"
+      fstype: "{{ boot_fstype.stdout }}"
+    when:
+    - boot_nodev_exists.stdout | length > 0
+
+  - name: Other options other than defaults exists, appending nodev
+    ansible.posix.mount:
+      path: /boot
+      opts: "{{ boot_mount_options.stdout }},nodev"
+      state: present
+      src: "{{ boot_block_device.stdout }}"
+      fstype: "{{ boot_fstype.stdout }}"
+    when:
+    - boot_defaults_exists.stdout | length == 0
+    - boot_nodev_exists.stdout | length == 0
+  when:
+  - boot_block_device.stdout | length > 0
+  - fstab_boot | bool
+  tags: cat_all,cat2
+
+- name: reload_daemon 
+  ansible.builtin.systemd:
+    daemon-reload: true
+  when:
+  - fstab_boot | bool 
+  tags: cat_all,cat_2
+
+- name: remount boot partition
+  ansible.builtin.command: sudo mount -o remount /boot
+  when:
+  - fstab_boot | bool
+  tags: cat_all,cat_2
+
+# Mount /boot/efi with nosuid (RHEL-08-010572)
+
+- name: Check if separate partition for /boot/efi exists (RHEL-08-010572)
+  ansible.builtin.shell:
+    cmd: grep '\s/boot/efi\s' /etc/fstab | awk '{print $1}'
+  ignore_errors: true
+  register: boot_efi_block_device
+  when:
+  - fstab_boot_efi | bool
+  tags: cat_all,cat2
+
+- name: Find fstype for /boot/efi block device (RHEL-08-010572)
+  ansible.builtin.shell:
+    cmd: grep '\s/boot/efi\s' /etc/fstab | awk '{print $3}'
+  ignore_errors: true
+  register: boot_efi_fstype
+  when:
+  - boot_efi_block_device.stdout | length > 0
+  - fstab_boot_efi | bool
+  tags: cat_all,cat2
+
+- name: Find mount_options for /boot/efi block device (RHEL-08-010572)
+  ansible.builtin.shell:
+    cmd: grep '\s/boot/efi\s' /etc/fstab | awk '{print $4}'
+  ignore_errors: true
+  register: boot_efi_mount_options
+  when:
+  - boot_efi_block_device.stdout | length > 0
+  - fstab_boot_efi | bool
+  tags: cat_all,cat2 
+
+- name: Check to see if 'defaults' is in mount_options for /boot/efi block device (RHEL-08-010572)
+  ansible.builtin.shell:
+    cmd: grep '\s/boot/efi\s' /etc/fstab | awk '{print $4}' | grep 'defaults'
+  ignore_errors: true
+  register: boot_efi_defaults_exists
+  when:
+  - boot_efi_block_device.stdout | length > 0
+  - fstab_boot_efi | bool
+  tags: cat_all,cat2  
+
+- name: Check to see if 'nosuid' is already in mount_options for /boot/efi block device (RHEL-08-010572)
+  ansible.builtin.shell:
+    cmd: grep '\s/boot/efi\s' /etc/fstab | awk '{print $4}' | grep 'nosuid'
+  ignore_errors: true
+  register: boot_efi_nosuid_exists
+  when:
+  - boot_efi_block_device.stdout | length > 0
+  - fstab_boot_efi | bool
+  tags: cat_all,cat2  
+
+- name: Mount /boot/efi with nosuid (RHEL-08-010572)
+  block:
+    - name: defaults is the only option set on /boot/efi, set nosuid
+      ansible.posix.mount:
+        path: /boot/efi
+        opts: nosuid
+        state: present
+        src: "{{ boot_efi_block_device.stdout }}"
+        fstype: "{{ boot_efi_fstype.stdout }}"
+        passno: '2'
+      when:
+      - boot_defaults_exists.stdout == 'defaults'
+
+    - name: nosuid option already exists along with other options
+      ansible.posix.mount:
+        path: /boot/efi
+        opts: "{{ boot_efi_mount_options.stdout }}"
+        state: present
+        src: "{{ boot_efi_block_device.stdout }}"
+        fstype: "{{ boot_efi_fstype.stdout }}"
+        passno: '2'
+      when:
+      - boot_efi_nosuid_exists.stdout | length > 0
+
+    - name: Other options other than defaults exists, appending nosuid
+      ansible.posix.mount:
+        path: /boot/efi
+        opts: "{{ boot_efi_mount_options.stdout }},nosuid"
+        state: present
+        src: "{{ boot_efi_block_device.stdout }}"
+        fstype: "{{ boot_efi_fstype.stdout }}"
+        passno: '2'
+      when:
+      - boot_efi_defaults_exists.stdout | length == 0
+      - boot_efi_nosuid_exists.stdout | length == 0
+  when:
+  - boot_efi_block_device.stdout | length > 0
+  - fstab_boot_efi | bool
+  tags: cat_all,cat2
+
+- name: Check to see if 'nodev' is already in mount_options for /boot/efi block device (RHEL-08-010580)
+  ansible.builtin.shell:
+    cmd: grep '\s/boot/efi\s' /etc/fstab | awk '{print $4}' | grep 'nodev'
+  ignore_errors: true
+  register: boot_efi_nodev_exists
+  when:
+  - boot_efi_block_device.stdout | length > 0
+  - fstab_boot_efi | bool
+  tags: cat_all,cat2  
+
+- name: Mount /boot/efi with nodev (RHEL-08-010580)
+  block:
+    - name: defaults is the only option set on /boot/efi, set nosuid & nodev
+      ansible.posix.mount:
+        path: /boot/efi
+        opts: nosuid,nodev
+        state: present
+        src: "{{ boot_efi_block_device.stdout }}"
+        fstype: "{{ boot_efi_fstype.stdout }}"
+        passno: '2'
+      when:
+      - boot_defaults_exists.stdout == 'defaults'
+
+    - name: nodev option already exists along with other options
+      ansible.posix.mount:
+        path: /boot/efi
+        opts: "{{ boot_efi_mount_options.stdout }}"
+        state: present
+        src: "{{ boot_efi_block_device.stdout }}"
+        fstype: "{{ boot_efi_fstype.stdout }}"
+        passno: '2'
+      when:
+      - boot_efi_nosuid_exists.stdout | length > 0
+
+    - name: Other options other than defaults exists, appending nodev
+      ansible.posix.mount:
+        path: /boot/efi
+        opts: "{{ boot_efi_mount_options.stdout }},nodev"
+        state: present
+        src: "{{ boot_efi_block_device.stdout }}"
+        fstype: "{{ boot_efi_fstype.stdout }}"
+        passno: '2'
+      when:
+      - boot_efi_defaults_exists.stdout | length == 0
+      - boot_efi_nodev_exists.stdout | length == 0
+  when:
+  - boot_efi_block_device.stdout | length > 0
+  - fstab_boot_efi | bool
+  tags: cat_all,cat2
+
+- name: reload_daemon 
+  ansible.builtin.systemd:
+    daemon-reload: true
+  when:
+  - fstab_boot_efi | bool 
+  tags: cat_all,cat_2
+
+- name: remount /boot partition
+  ansible.builtin.command: sudo mount -o remount /boot/efi
+  when:
+  - fstab_boot_efi | bool
+  tags: cat_all,cat_2
+
+# Mount /tmp with nodev, nosuid (RHEL-08-040123, RHEL-08-040124, RHEL-08-040125)
+
+- name: Check if separate partition for /tmp exists (RHEL-08-040123, RHEL-08-040124, RHEL-08-040125)
+  ansible.builtin.shell:
+    cmd: grep '\s/tmp\s' /etc/fstab | awk '{print $1}'
+  ignore_errors: true
+  register: tmp_block_device
+  when:
+  - fstab_tmp | bool
+  tags: cat_all,cat2
+
+- name: Find fstype for /tmp block device (RHEL-08-040123, RHEL-08-040124, RHEL-08-040125)
+  ansible.builtin.shell:
+    cmd: grep '\s/tmp\s' /etc/fstab | awk '{print $3}'
+  ignore_errors: true
+  register: tmp_fstype
+  when:
+  - tmp_block_device.stdout | length > 0
+  - fstab_tmp | bool
+  tags: cat_all,cat2
+
+- name: Mount /tmp with nodev, nosuid (RHEL-08-040123, RHEL-08-040124, RHEL-08-040125)
+  ansible.posix.mount:
+    path: /tmp
+    opts: nodev,nosuid
+    state: present
+    src: "{{ tmp_block_device.stdout }}"
+    fstype: "{{ tmp_fstype.stdout }}"
+  when:
+  - tmp_block_device.stdout | length > 0
+  - fstab_tmp | bool
+  tags: cat_all,cat2
+
+- name: reload_daemon 
+  ansible.builtin.systemd:
+    daemon-reload: true
+  when:
+  - fstab_tmp| bool 
+  tags: cat_all,cat_2
+
+- name: remount /boot/efi partition
+  ansible.builtin.command: sudo mount -o remount /tmp
+  when:
+  - fstab_tmp | bool
+  tags: cat_all,cat_2
+
+# Mount /var with nodev (RHEL-09-23)
+
+- name: Check if separate partition for /var exists (RHEL-08-010580)
+  ansible.builtin.shell:
+    cmd: grep '\s/var\s' /etc/fstab | awk '{print $1}'
+  ignore_errors: true
+  register: var_block_device
+  when: 
+  - fstab_var | bool
+  tags: cat_all,cat2
+
+- name: Find fstype for /var block device (RHEL-08-010580)
+  ansible.builtin.shell:
+    cmd: grep '\s/var\s' /etc/fstab | awk '{print $3}'
+  ignore_errors: true
+  register: var_fstype
+  when:
+  - var_block_device.stdout | length > 0 
+  - fstab_var | bool
+  tags: cat_all,cat2
+
+- name: Mount /var with nodev (RHEL-08-010580)
+  ansible.posix.mount:
+    path: /var
+    opts: nodev
+    state: present
+    src: "{{ var_block_device.stdout }}"
+    fstype: "{{ var_fstype.stdout }}"
+  when: 
+  - var_block_device.stdout | length > 0  
+  - fstab_var | bool
+  tags: cat_all,cat2
+
+- name: reload_daemon 
+  ansible.builtin.systemd:
+    daemon-reload: true
+  when:
+  - fstab_var | bool 
+  tags: cat_all,cat_2
+
+- name: remount /var partition
+  ansible.builtin.command: sudo mount -o remount /var
+  when:
+  - fstab_var | bool
+  tags: cat_all,cat_2  
+
+# Mount /var/log with nodev, noexec, nosuid (RHEL-08-040126, RHEL-08-040127, RHEL-08-040128)
+
+- name: Check if separate partition for /var/log exists (RHEL-08-040126, RHEL-08-040127, RHEL-08-040128)
+  ansible.builtin.shell:
+    cmd: grep '\s/var/log\s' /etc/fstab | awk '{print $1}'
+  ignore_errors: true
+  register: var_log_block_device
+  when: 
+  - fstab_var_log | bool
+  tags: cat_all,cat2
+
+- name: Find fstype for /var/log block device (RHEL-08-040126, RHEL-08-040127, RHEL-08-040128)
+  ansible.builtin.shell:
+    cmd: grep '\s/var/log\s' /etc/fstab | awk '{print $3}'
+  ignore_errors: true
+  register: var_log_fstype
+  when:
+  - var_log_block_device.stdout | length > 0 
+  - fstab_var_log | bool
+  tags: cat_all,cat2
+
+- name: Mount /var/log with nodev, noexec, nosuid (RHEL-08-040126, RHEL-08-040127, RHEL-08-040128)
+  ansible.posix.mount:
+    path: /var/log
+    opts: nodev,noexec,nosuid
+    state: present
+    src: "{{ var_log_block_device.stdout }}"
+    fstype: "{{ var_log_fstype.stdout }}"
+  when: 
+  - var_log_block_device.stdout | length > 0  
+  - fstab_var_log | bool
+  tags: cat_all,cat2
+
+- name: reload_daemon 
+  ansible.builtin.systemd:
+    daemon-reload: true
+  when:
+  - fstab_var_log | bool 
+  tags: cat_all,cat_2
+
+- name: remount /var/log partition
+  ansible.builtin.command: sudo mount -o remount /var/log
+  when:
+  - fstab_var_log | bool
+  tags: cat_all,cat_2 
+
+# Mount /var/log/audit with nodev, noexec, nosuid (RHEL-08-040129, RHEL-08-040130, RHEL-08-040131)
+
+- name: Check if separate partition for /var/log/audit exists (RHEL-08-040129, RHEL-08-040130, RHEL-08-040131)
+  ansible.builtin.shell:
+    cmd: grep '\s/var/log/audit\s' /etc/fstab | awk '{print $1}'
+  ignore_errors: true
+  register: var_log_audit_block_device
+  when: 
+  - fstab_var_log_audit | bool
+  tags: cat_all,cat2
+
+- name: Find fstype for /var/log/audit block device (RHEL-08-040129, RHEL-08-040130, RHEL-08-040131)
+  ansible.builtin.shell:
+    cmd: grep '\s/var/log/audit\s' /etc/fstab | awk '{print $3}'
+  ignore_errors: true
+  register: var_log_audit_fstype
+  when:
+  - var_log_audit_block_device.stdout | length > 0 
+  - fstab_var_log_audit | bool
+  tags: cat_all,cat2
+
+- name: Mount /var/log/audit with nodev, noexec, nosuid (RHEL-08-040129, RHEL-08-040130, RHEL-08-040131)
+  ansible.posix.mount:
+    path: /var/log/audit
+    opts: nodev,noexec,nosuid
+    state: present
+    src: "{{ var_log_audit_block_device.stdout }}"
+    fstype: "{{ var_log_audit_fstype.stdout }}"
+  when: 
+  - var_log_audit_block_device.stdout | length > 0  
+  - fstab_var_log_audit | bool
+  tags: cat_all,cat2
+
+- name: reload_daemon 
+  ansible.builtin.systemd:
+    daemon-reload: true
+  when:
+  - fstab_var_log_audit | bool 
+  tags: cat_all,cat_2
+
+- name: remount /var/log/audit partition
+  ansible.builtin.command: sudo mount -o remount /var/log/audit
+  when:
+  - fstab_var_log_audit | bool
+  tags: cat_all,cat_2 
+
+# Mount /var/tmp with nodev, noexec, nosuid (RHEL-08-040132, RHEL-08-040133, RHEL-08-040134)
+
+- name: Check if separate partition for /var/tmp exists (RHEL-08-040132, RHEL-08-040133, RHEL-08-040134)
+  ansible.builtin.shell:
+    cmd: grep '\s/var/tmp\s' /etc/fstab | awk '{print $1}'
+  ignore_errors: true
+  register: var_tmp_block_device
+  when: 
+  - fstab_var_tmp| bool
+  tags: cat_all,cat2
+
+- name: Find fstype for /var/tmp block device (RHEL-08-040132, RHEL-08-040133, RHEL-08-040134)
+  ansible.builtin.shell:
+    cmd: grep '\s/var/tmp\s' /etc/fstab | awk '{print $3}'
+  ignore_errors: true
+  register: var_tmp_fstype
+  when:
+  - var_tmp_block_device.stdout | length > 0 
+  - fstab_var_tmp| bool
+  tags: cat_all,cat2
+
+- name: Mount /var/tmp with nodev, noexec, nosuid (RHEL-08-040132, RHEL-08-040133, RHEL-08-040134)
+  ansible.posix.mount:
+    path: /var/tmp
+    opts: nodev,noexec,nosuid
+    state: present
+    src: "{{ var_tmp_block_device.stdout }}"
+    fstype: "{{ var_tmp_fstype.stdout }}"
+  when: 
+  - var_tmp_block_device.stdout | length > 0  
+  - fstab_var_tmp | bool
+  tags: cat_all,cat2
+
+- name: reload_daemon 
+  ansible.builtin.systemd:
+    daemon-reload: true
+  when:
+  - fstab_var_tmp | bool 
+  tags: cat_all,cat_2
+
+- name: remount /var/tmp partition
+  ansible.builtin.command: sudo mount -o remount /var/tmp
+  when:
+  - fstab_var_tmp | bool
+  tags: cat_all,cat_2 
+
+# Mount /home with nosuid, (RHEL-08-010570, RHEL-08-010580, RHEL-08-010590)
+
+- name: Check if separate partition for /home exists (RHEL-08-010570)
+  ansible.builtin.shell:
+    cmd: grep '\s/home\s' /etc/fstab | awk '{print $1}'
+  ignore_errors: true
+  register: home_block_device
+  when: 
+  - fstab_home| bool
+  tags: cat_all,cat2
+
+- name: Find fstype for /home block device (RHEL-08-010570)
+  ansible.builtin.shell:
+    cmd: grep '\s/home\s' /etc/fstab | awk '{print $3}'
+  ignore_errors: true
+  register: home_fstype
+  when:
+  - home_block_device.stdout | length > 0 
+  - fstab_home| bool
+  tags: cat_all,cat2
+
+- name: Mount /home with nodev, nosuid (RHEL-08-010570)
+  ansible.posix.mount:
+    path: /home
+    opts: nosuid,nodev
+    state: present
+    src: "{{ home_block_device.stdout }}"
+    fstype: "{{ home_fstype.stdout }}"
+  when: 
+  - home_block_device.stdout | length > 0  
+  - fstab_home | bool
+  tags: cat_all,cat2
+
+- name: reload_daemon 
+  ansible.builtin.systemd:
+    daemon-reload: true
+  when:
+  - fstab_home | bool 
+  tags: cat_all,cat_2
+
+- name: remount /home partition
+  ansible.builtin.command: sudo mount -o remount /home
+  when:
+  - fstab_home | bool
+  tags: cat_all,cat_2 
+
+# Mount /dev/shm with nodev, nosuid, noexec (RHEL-08-040120, RHEL-08-040121, RHEL-08-040122)
+
+- name: Mount /dev/shm with nodev, noexec, nosuid (RHEL-08-040120, RHEL-08-040121, RHEL-08-040122)
+  ansible.posix.mount:
+    path: /dev/shm
+    opts: nosuid,nodev,noexec
+    state: present
+    src: tmpfs
+    fstype: tmpfs
+  when: 
+  - fstab_dev_shm | bool
+  tags: cat_all,cat2
+
+- name: reload_daemon 
+  ansible.builtin.systemd:
+    daemon-reload: true
+  when:
+  - fstab_home | bool 
+  tags: cat_all,cat_2
+
+- name: remount /dev/shm partition
+  ansible.builtin.command: sudo mount -o remount /dev/shm
+  when:
+  - fstab_home | bool
+  tags: cat_all,cat_2 
+
+# End of Partition Related Tasks
+
+#######################################################
+# End of Added Supplemental Tasks
+#######################################################
+
+#######################################################
+# BUILD LOG FILE
+#######################################################
+- name: Output findings to log file at "{{ log_file }}"
+  ansible.builtin.lineinfile:
+    path: "{{ log_file }}"
+    line: "{{ item }}"
+    create: true
+  loop: "{{ log_var }}"
+  when:
+  - log_var | length > 0
+  tags: cat_all,always
+
+# #######################################################
+# # Update kernel and all packages
+# #######################################################
+
+# - name: Update kernel and all packages
+#   ansible.builtin.package:
+#     name: "*"
+#     state: latest
+#   tags: always
+  
+# #######################################################
+# # Reboot Systems
+# #######################################################
+
+# - name: Prompt to reboot System
+#   ansible.builtin.pause:
+#     prompt: "\nDo you want to reboot your systems? (yes/no) \n\n Some STIGS will not be applied without a reboot and you will need to perform your reboots manually if 'no' is selected.\n\nType 'yes' or 'no' "
+#   register: reboot_response
+#   delegate_to: all
+#   run_once: true
+#   tags: always
+
+# - name: Set proceed_with_reboot
+#   ansible.builtin.set_fact:
+#     proceed_with_reboot: "{{ reboot_response.user_input | lower == 'yes' }}"
+#   delegate_to: all
+#   run_once: true
+#   when: reboot_response
+#   tags: always
+
+# - name: Rebooting System
+#   ansible.builtin.debug:
+#     msg: "Your Systems will reboot at the end of this playbook."
+#   when: proceed_with_reboot
+#   changed_when: proceed_with_reboot
+#   notify: reboot_system
+#   tags: always

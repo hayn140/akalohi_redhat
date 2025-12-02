@@ -1,0 +1,141 @@
+---
+
+- name: source_tmux_conf
+  ansible.builtin.command: tmux source-file /etc/tmux.conf
+  ignore_errors: true
+  failed_when: false
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: grubby_page_poison
+  ansible.builtin.command: grubby --update-kernel=ALL --args="page_poison=1"
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: grubby_vsyscall
+  ansible.builtin.command: grubby --update-kernel=ALL --args="vsyscall=none"
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: grubby_slub_debug
+  ansible.builtin.command: grubby --update-kernel=ALL --args="slub_debug=P"
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: grubby_audit
+  ansible.builtin.command: grubby --update-kernel=ALL --args="audit=1"
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: grubby_audit_backlog
+  ansible.builtin.command: grubby --update-kernel=ALL --args="audit_backlog_limit=8192"
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: grubby_pti
+  ansible.builtin.command: grubby --update-kernel=ALL --args="pti=on"
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: relink_password_auth
+  ansible.builtin.file:
+    src: /etc/pam.d/password-auth-local
+    dest: /etc/pam.d/password-auth
+    state: link
+    force: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: relink_system_auth
+  ansible.builtin.file:
+    src: /etc/pam.d/system-auth-local
+    dest: /etc/pam.d/system-auth
+    state: link
+    force: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: relink_postlogin
+  ansible.builtin.file:
+    src: /etc/pam.d/postlogin-local
+    dest: /etc/pam.d/postlogin
+    state: link
+    force: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: dconf_update
+  ansible.builtin.command: dconf update
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: reload_systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: link_openssh_server
+  ansible.builtin.file:
+    src: /usr/share/crypto-policies/FIPS/opensshserver.txt
+    dest: /etc/crypto-policies/back-ends/opensshserver.config
+    state: link
+    force: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: link_gnutls
+  ansible.builtin.file:
+    src: /usr/share/crypto-policies/FIPS/gnutls.txt
+    dest: /etc/crypto-policies/back-ends/gnutls.config
+    state: link
+    force: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: link_opensslcnf
+  ansible.builtin.file:
+    src: /usr/share/crypto-policies/FIPS/opensslcnf.txt
+    dest: /etc/crypto-policies/back-ends/opensslcnf.config
+    state: link
+    force: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: restart_sshd
+  ansible.builtin.systemd:
+    name: sshd
+    state: restarted
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: restart_rsyslog
+  ansible.builtin.systemd:
+    name: rsyslog
+    state: restarted
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: restart_auditd
+  ansible.builtin.command: service auditd restart
+  ignore_errors: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: restart_usbguard
+  ansible.builtin.systemd:
+    name: usbguard
+    state: restarted
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: restart_logind
+  ansible.builtin.systemd:
+    name: systemd-logind
+    state: restarted
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: restorecon_faillock
+  ansible.builtin.command: restorecon -Fr /var/log/faillock
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: regen_grub_cfg_bios
+  ansible.builtin.command: grub2-mkconfig -o /boot/grub2/grub.cfg
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: regen_grub_cfg_efi
+  ansible.builtin.command: grub2-mkconfig -o /boot/efi/EFI/redhat/grub.cfg
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: aide_init # Perform last due to long run time
+  ansible.builtin.shell: |
+    aide --init
+    mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: reboot_system
+  ansible.builtin.reboot:
+    msg: "Reboot initated by Ansible"
+    reboot_timeout: 600
+  tags: cat_all,always,cat1,cat2,cat3

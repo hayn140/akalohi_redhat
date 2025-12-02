@@ -1,0 +1,7 @@
+---
+# tasks file for sat_register
+#
+
+- name: Register to satellite
+  ansible.builtin.shell:
+    cmd: "{{ aws_bootstrap }}"

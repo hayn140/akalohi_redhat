@@ -1,0 +1,62 @@
+---
+# tasks file for dnf_update
+# This is a dumb way to unset the version lock. But the commented out module fails and I am tired. 
+- name: Unset release version
+  ansible.builtin.command:
+    subscription-manager release --unset
+  register: reboot_required
+
+# - name: Unset the release version
+#   community.general.rhsm_release:
+#     release: null
+#     # release: '{{ target_release }}'
+    
+# - name: Remove rhsm repos
+#   community.general.rhsm_repository:
+#     name: '*'
+#     state: disabled
+
+- name: Enable RHEL 8 repos
+  community.general.rhsm_repository:
+    name: "{{ item }}"
+    state: enabled
+  loop:
+    - rhel-8-for-x86_64-appstream-rpms
+    - rhel-8-for-x86_64-baseos-rpms
+  when: 
+    - ansible_distribution == 'RedHat'
+    - ansible_distribution_major_version == '8'
+
+- name: Enable RHEL 9 repos
+  community.general.rhsm_repository:
+    name: "{{ item }}"
+    state: enabled
+  loop:
+    - rhel-9-for-x86_64-appstream-rpms
+    - rhel-9-for-x86_64-baseos-rpms
+  when: 
+    - ansible_distribution == 'RedHat'
+    - ansible_distribution_major_version == '9'
+
+- name: Install dnf-utils for reboot detection functionality
+  ansible.builtin.dnf:
+    name: dnf-utils
+    state: present
+
+# - name: Update everything because I have a problem
+#   ansible.builtin.dnf:
+#     name: "*"
+#     state: latest
+
+- name: Check if a reboot is needed
+  ansible.builtin.command:
+    needs-restarting -r
+  register: reboot_required
+  ignore_errors: true
+  failed_when: false
+  changed_when: reboot_required.rc !=0
+
+- name: Reboot when needed
+  ansible.builtin.reboot:
+    reboot_timeout: 3600
+  when: reboot_required.changed

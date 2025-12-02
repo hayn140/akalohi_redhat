@@ -1,0 +1,2 @@
+---
+aws_bootstrap: "set -o pipefail..."

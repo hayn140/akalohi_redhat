@@ -1,0 +1,8 @@
+# RHEL-08-020080: Prevent users from overriding settings for graphical user interfaces
+/org/gnome/desktop/screensaver/lock-delay
+
+# RHEL-08-020081: Prevent users from overriding settings for graphical user interfaces
+/org/gnome/desktop/session/idle-delay
+
+# RHEL-08-020082: Prevent users from overriding settings for graphical user interfaces
+/org/gnome/desktop/screensaver/lock-enabled

@@ -1,0 +1,7 @@
+[Service]
+ExecStartPre=
+ExecStartPre=-/bin/plymouth quit
+ExecStartPre=-/bin/echo -e 'Welcome to rescue mode!\\nType "journalctl -xb" to view system logs. Type "systemctl reboot" or "exit" to reboot.'
+ExecStart=
+ExecStart=-/bin/sh -c "/bin/bash; /usr/bin/systemctl --fail --no-block reboot"
+

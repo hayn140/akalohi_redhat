@@ -1,0 +1,97 @@
+---
+# tasks file for universal_prep
+- name: Remove unnecessary keys from authorized keys
+  ansible.builtin.shell: |
+    rm -f /etc/ssh/ssh_host*
+
+- name: Remove persistent network stuff
+  ansible.builtin.shell: |
+    rm -f /etc/udev/rules.d/7?-persistent*
+
+- name: Delete any gzip'd logs
+  ansible.builtin.shell: |
+    rm -f /var/log/*.gz; rm -f /var/log/aide/*.gz; rm -f /var/log/audit/*.gz; rm -f /var/log/kickstart/*.gz; rm -f /var/log/puppet/*; rm -f /var/log/rsyslog/*; rm -f /var/log/sa/*; rm -f /var/log/selfservice/*
+
+- name: Delete any logs which recreate themselves automatically
+  ansible.builtin.shell: |
+    rm -f /var/log/dracut.log; rm -f /var/log/dmesg
+
+- name: Zero out all current logs
+  ansible.builtin.shell: |
+    :> /var/log/secure; :> /var/log/messages; :> /var/log/audit/audit.log; :> /var/log/boot.log; :> /var/log/btmp; :> /var/log/centrifydc-install.log; :> /var/log/cloud-init.log; :> /var/log/cron; :> /var/log/hud.log; :> /var/log/kern.log; :> /var/log/maillog; :> /var/log/messages; :> /var/log/runonce.log; :> /var/log/secure; :> /var/log/spooler; :> /var/log/syslog; :> /var/log/tallylog; :> /var/log/unused.log; :> /var/log/wtmp; :> /var/log/yum.log
+
+- name: Zero out all other temp files in /var/log
+  ansible.builtin.shell: |
+    find /var/log -type f | awk '{print "> " $1 }' | bash -s
+
+- name: Clear out the tmp directory
+  ansible.builtin.shell: |
+    rm -rf /tmp/*
+
+- name: Remove anaconda file from root directory
+  ansible.builtin.file:
+    path: /root/anaconda-ks.cfg
+    state: absent
+
+- name: Clean 'cloud-user' history
+  ansible.builtin.shell: |
+    su -c "history -c && history -w" - cloud-user
+
+- name: Unregister from Satellite
+  ansible.builtin.shell:
+    cmd: subscription-manager unregister
+
+- name: Remove subscriptions
+  ansible.builtin.shell:
+    cmd: subscription-manager remove --all
+
+- name: Dump subscriptions
+  ansible.builtin.shell:
+    cmd: subscription-manager clean
+
+- name: Remove katello noise
+  ansible.builtin.shell:
+    cmd: dnf remove -y katello-ca-consumer\*
+
+- name: Remove other katello noise
+  ansible.builtin.file:
+    path: /etc/rhsm/facts/katello.facts
+    state: absent
+
+- name: Clean yum
+  ansible.builtin.shell:
+    cmd: yum clean all
+
+- name: Configure generic hostname
+  ansible.builtin.shell:
+    cmd: hostnamectl set-hostname localhost.localdomain
+
+- name: Remove rhel 8 sat info
+  ansible.builtin.file:
+    path: /var/lib/dbus/machine-id
+    state: absent
+  when:
+    - ansible_distribution == 'RedHat'
+    - ansible_distribution_major_version == '8'
+
+- name: Remove rhel 9 sat info
+  ansible.builtin.file:
+    path: /etc/machine-id
+    state: absent
+  when:
+    - ansible_distribution == 'RedHat'
+    - ansible_distribution_major_version == '9'
+
+- name: Initialize machine-id
+  ansible.builtin.copy:
+    content: "uninitialized"
+    dest: /etc/machine-id
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Run cloud-init for image build
+  ansible.builtin.command:
+    cmd: cloud-init clean
+  ignore_errors: true
+  # TEMP: fix for vmware build

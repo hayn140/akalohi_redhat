@@ -1,0 +1,51 @@
+---
+
+# - name: Install ste clients
+#   ansible.builtin.import_role:
+#     name: ste_clients
+#   tags: ste_init
+
+- name: Inject cloud init based on var
+  ansible.builtin.import_role:
+    name: cloud_init_universal
+  tags: cloud_init
+
+- name: Increase grub timeout
+  ansible.builtin.import_role:
+    name: grub_timeout
+  tags: grub
+
+- name: Configure dnf-automatic
+  ansible.builtin.import_role:
+    name: dnf_automatic
+  tags: dnf_auto
+
+- name: Configure baseline rpms
+  ansible.builtin.import_role:
+    name: dnf_base_rpms
+  tags: dnf_base_rpms
+
+- name: Change timezone to UTC/GMT
+  ansible.builtin.import_role:
+    name: timezone
+  tags: timezone-change
+
+- name: Run supplemental hardening tasks
+  ansible.builtin.import_role:
+    name: hardening-supplemental
+  tags: hardening-supplemental
+
+#    - name: Copy out los docs
+#      ansible.builtin.import_role:
+#        name: los_docs
+#      tags: los
+
+- name: Enable STIG SSH Timeout 
+  ansible.builtin.import_role:
+    name: logind_enable_ssh_timeout
+  tags: enable_ssh_timeout
+  
+- name: Unregister, delete tmp files and clean cloud-init
+  ansible.builtin.import_role:
+    name: image_prep
+  tags: prep

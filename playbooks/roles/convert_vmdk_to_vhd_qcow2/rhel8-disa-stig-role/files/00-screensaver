@@ -1,0 +1,12 @@
+[org/gnome/desktop/screensaver]
+
+# RHEL-08-020030: Lock the screen when the screensaver activates
+lock-enabled=true
+
+# RHEL-08-020031: Initiate a session lock when the screensaver activates
+lock-delay=uint32 5
+
+[org/gnome/desktop/session]
+
+# RHEL-08-020060: Initiate a screensaver after a 15-minute period of inactivity
+idle-delay=uint32 900

@@ -1,0 +1,124 @@
+---
+
+- name: source_tmux_conf
+  ansible.builtin.command: tmux source-file /etc/tmux.conf
+  ignore_errors: true
+  failed_when: false
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: new_aliases
+  ansible.builtin.command: newaliases
+  ignore_errors: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: reload_systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: restart_sshd
+  ansible.builtin.systemd:
+    name: sshd
+    state: restarted
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: set_selinux
+  ansible.builtin.command: setenforce 1
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: grubby_update_kernel
+  ansible.builtin.command: grubby --update-kernel=ALL
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: relink_password_auth
+  ansible.builtin.file:
+    src: /etc/pam.d/password-auth-local
+    dest: /etc/pam.d/password-auth
+    state: link
+    force: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: relink_system_auth
+  ansible.builtin.file:
+    src: /etc/pam.d/system-auth-local
+    dest: /etc/pam.d/system-auth
+    state: link
+    force: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: relink_postlogin
+  ansible.builtin.file:
+    src: /etc/pam.d/postlogin-local
+    dest: /etc/pam.d/postlogin
+    state: link
+    force: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: restart_chronyd
+  ansible.builtin.systemd:
+    name: chronyd
+    state: restarted
+  ignore_errors: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: restart_firewalld
+  ansible.builtin.systemd:
+    name: firewalld
+    state: restarted
+  ignore_errors: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: restart_logind
+  ansible.builtin.systemd:
+    name: systemd-logind
+    state: restarted
+  ignore_errors: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: restart_rsyslog
+  ansible.builtin.systemd:
+    name: rsyslog
+    state: restarted
+  ignore_errors: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: reload_networkmanager
+  ansible.builtin.systemd:
+    name: NetworkManager
+    state: reloaded
+  ignore_errors: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: restart_auditd
+  ansible.builtin.command: service auditd restart # We cannot use systemctl commands to restart auditd
+  ignore_errors: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: dconf_update
+  ansible.builtin.command: dconf update
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: faillock_selinux_rule
+  ansible.builtin.shell: semanage fcontext -a -t faillog_t "/var/log/faillock(/.*)?"
+  ignore_errors: true
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: regen_grub_cfg_bios
+  ansible.builtin.command: grub2-mkconfig -o /boot/grub2/grub.cfg
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: regen_grub_cfg_efi
+  ansible.builtin.command: grub2-mkconfig -o /boot/efi/EFI/redhat/grub.cfg
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: aide_init # Perform last due to long run time
+  ansible.builtin.shell: |
+    aide --init
+    mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+  tags: cat_all,always,cat1,cat2,cat3
+
+- name: reboot_system
+  ansible.builtin.reboot:
+    msg: "Reboot initated by Ansible"
+    reboot_timeout: 600
+  tags: cat_all,always,cat1,cat2,cat3

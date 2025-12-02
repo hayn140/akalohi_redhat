@@ -1,0 +1,24 @@
+---
+# tasks file for dnf_automatic
+- name: Install dnf-automatic
+  ansible.builtin.dnf:
+    name: dnf-automatic
+    state: present
+
+- name: Enable automatic updates for dnf
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/automatic.conf
+    regexp: '^apply_updates = no'
+    line: 'apply_updates = yes'
+
+- name: Replace root@example.com in dnf-automatic with root@localhost
+  ansible.builtin.replace:
+    path: /etc/dnf/automatic.conf
+    regexp: '^email_from = root@example.com'
+    replace: 'email_from = root@locahost'
+
+- name: Start and enable dnf-automatic
+  ansible.builtin.service:
+    name: dnf-automatic-install.timer
+    state: started
+    enabled: yes

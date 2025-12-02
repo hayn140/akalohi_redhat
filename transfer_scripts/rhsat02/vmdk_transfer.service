@@ -1,0 +1,16 @@
+# Place this file on RHSAT02 at /etc/systemd/system/vmdk_transfer.service
+[Unit]
+Description=VMDK Transfer to Worker Node Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/vmdk_transfer.sh
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

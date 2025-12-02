@@ -1,0 +1,41 @@
+---
+# tasks file for create_ec2_dummy
+
+- name: Launch EC2 Dummy Instance for OVA Export
+  amazon.aws.ec2_instance:
+    name: "dummy_instance-{{ ansible_date_time.epoch }}"
+    key_name: "{{ ec2_dummy_ssh_key_name }}"
+    instance_type: "{{ ec2_instance_type }}"
+    image_id: "{{ imported_ami_id }}"
+    count: 1
+    region: "{{ aws_region }}"
+    vpc_subnet_id: "{{ ec2_subnet_id }}"
+    security_group: "{{ ec2_security_group }}"
+    state: running
+    wait: true
+    access_key: "{{ aws_access_key }}"
+    secret_key: "{{ aws_secret_key }}"
+    session_token: "{{ aws_session_token }}"
+    validate_certs: false
+  become: false
+  register: ec2_dummy_result
+
+- name: Wait for instance to pass 2/2 checks using AWS CLI
+  ansible.builtin.command: >
+    aws ec2 wait instance-status-ok
+    --instance-ids {{ ec2_dummy_result.instances[0].instance_id }}
+    --no-verify-ssl
+    --region {{ aws_region }}
+  become: false
+  changed_when: false
+
+- name: Add new EC2 Dummy IP & ID to inventory group 'dummy_instance''
+  ansible.builtin.add_host:
+    name: "{{ ec2_dummy_result.instances[0].private_ip_address }}"
+    groups: dummy_instance
+    dummy_ec2_instance_id: "{{ ec2_dummy_result.instances[0].instance_id }}"
+
+
+- name: Set 'dummy_ec2_instance_id' variable for worker node
+  ansible.builtin.set_fact:
+    dummy_ec2_instance_id: "{{ ec2_dummy_result.instances[0].instance_id }}"

@@ -1,0 +1,16 @@
+# tasks file for logind_enable_ssh_timeout
+
+# Restore the pesky stig setting that kills ssh sessions
+- name: Restore STIG /etc/systemd/logind.conf setting back to default timeout.
+  ansible.builtin.replace:
+    path: /etc/systemd/logind.conf
+    regexp: '^StopIdleSessionSec=.*$'
+    replace: "StopIdleSessionSec=600"
+
+# reload/restart the logind service
+- name: Restart systemd-logind for changes to take effect
+  ansible.builtin.systemd_service:
+    name: systemd-logind
+    daemon_reload: true
+    state: restarted
+    enabled: true

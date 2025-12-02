@@ -1,0 +1,17 @@
+---
+# Software to be removed
+
+packages_remove:
+  - tcpdump
+  - pigz
+
+packages_install:
+  - libcap-ng-utils
+  - audispd-plugins
+  - jq
+  - usbguard
+
+accounts_removed:
+  - games
+  - ftp
+  - tcpdump  
