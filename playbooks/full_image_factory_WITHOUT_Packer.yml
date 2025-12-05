@@ -43,7 +43,7 @@
 
 - name: Provision Dummy Instance & create Provisioned AMI
   hosts: dummy_instance
-  remote_user: cloud-user
+  remote_user: ec2-user
   tags: provision_dummy_instance
   environment:
     AWS_ACCESS_KEY_ID: "{{ aws_access_key }}"
