@@ -1,0 +1,11 @@
+---
+
+- name: Add Provisioning File to /tmp/
+  ansible.builtin.copy:
+    dest: /tmp/provisioned_by_image_factory.txt
+    content: |
+      This file was created using the
+      automated image_factory.
+    mode: '0644'
+    owner: root
+    group: root

@@ -52,7 +52,8 @@
     AWS_DEFAULT_REGION: "{{ aws_region }}"
 
   roles:
-    - provision_dummy_instance
+    - add_provisioned_verification_file
+    #- provision_dummy_instance
 
 - name: Export Provisioned EC2 Instance to OVA, VMDK, QCOW2, VHD, & AMI Format, then Cleanup
   hosts: worker_node
