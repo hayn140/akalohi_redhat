@@ -6,25 +6,25 @@
     path: "{{ image_conversion_dir }}/image_conversion"
     state: absent
 
-- name: Notify shareholders of Image Completion
-  community.general.mail:
-    host: smtp.nsa.ic.gov
-    port: 25
-    from: RedHatHelp@nsa.ic.gov
-    to: "{{ notify_users }}"
-    subject: "The New Provisioned {{ provisioned_image_name }} Image is Now Available."
-    body: |
-      The following provisioned Image is now available in C2E:
+# - name: Notify shareholders of Image Completion
+#   community.general.mail:
+#     host: 
+#     port: 25
+#     from:
+#     to: "{{ notify_users }}"
+#     subject: "The New Provisioned {{ provisioned_image_name }} Image is Now Available."
+#     body: |
+#       The following provisioned Image is now available in C2E:
 
-      AMI ID: {{ provisioned_ami_id }}
-      AMI NAME: {{ provisioned_image_name }}
+#       AMI ID: {{ provisioned_ami_id }}
+#       AMI NAME: {{ provisioned_image_name }}
 
-      Other Formats of the same image can be found at the following locations in the '{{ s3_bucket_name }}' S3 Bucket:
+#       Other Formats of the same image can be found at the following locations in the '{{ s3_bucket_name }}' S3 Bucket:
 
-      OVA: {{ s3_ova_full_pathname }}
-      VMDK: {{ s3_vmdk_full_pathname }}
-      VHD: {{ s3_vhd_full_pathname }}
-      QCOW2: {{ s3_qcow2_full_pathname }}
+#       OVA: {{ s3_ova_full_pathname }}
+#       VMDK: {{ s3_vmdk_full_pathname }}
+#       VHD: {{ s3_vhd_full_pathname }}
+#       QCOW2: {{ s3_qcow2_full_pathname }}
 
 - name: All Provisioned Image Conversions COMPLETE!
   ansible.builtin.debug:
