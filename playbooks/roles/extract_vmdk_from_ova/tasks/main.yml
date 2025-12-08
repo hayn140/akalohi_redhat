@@ -11,7 +11,7 @@
     path: "{{ image_conversion_dir }}/image_conversion"
     state: directory
     owner: rh-ansible
-    group: domusers
+    group: rh-ansible
     mode: '0775'
 
 - name: GET OVA from S3 Bucket
