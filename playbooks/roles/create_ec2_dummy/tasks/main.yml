@@ -13,6 +13,8 @@
     security_group: "{{ ec2_security_group }}"
     state: running
     wait: true
+    network_interfaces:
+      - assign_public_ip: true
     access_key: "{{ aws_access_key }}"
     secret_key: "{{ aws_secret_key }}"
     session_token: "{{ aws_session_token }}"
@@ -31,7 +33,7 @@
 
 - name: Add new EC2 Dummy IP & ID to inventory group 'dummy_instance''
   ansible.builtin.add_host:
-    name: "{{ ec2_dummy_result.instances[0].private_ip_address }}"
+    name: "{{ ec2_dummy_result.instances[0].public_ip_address }}"
     groups: dummy_instance
     dummy_ec2_instance_id: "{{ ec2_dummy_result.instances[0].instance_id }}"
 
