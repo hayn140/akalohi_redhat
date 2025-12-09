@@ -1,5 +1,6 @@
 ---
 
+### Add proof of provision file ###
 - name: Add Provisioning File to /tmp/
   ansible.builtin.copy:
     dest: /tmp/provisioned_by_image_factory.txt
@@ -9,6 +10,8 @@
     mode: '0644'
     owner: root
     group: root
+
+### Create cloud-user ###
 
 - name: Create cloud-user if the user doesn't exist & set Temporary Password
   ansible.builtin.user:
@@ -23,6 +26,8 @@
     expires: -1
     password: "{{ 'Changeplease$1235' | password_hash('sha512') }}"
     state: present
+    
+### Enable SSH authentication with password ###
 
 - name: Ensure PasswordAuthentication is set to yes
   lineinfile:
@@ -45,15 +50,23 @@
     name: sshd
     state: restarted
 
+### Configure cloud-init with default user cloud-user ###
+
 - name: Ensure cloud-init is installed
   ansible.builtin.package:
     name: cloud-init
     state: installed
     
-- name: Deploy LOS RHEL cloud.cfg
+- name: Deploy cloud.cfg template for cloud-init
   ansible.builtin.template:
-    src: LOS_rhel_cloud.cfg.j2
+    src: cloud_cfg.j2
     dest: /etc/cloud/cloud.cfg
     owner: root
     group: root
     mode: 0644
+
+### Clean up Image ###
+- name: Unregister, delete tmp files and clean cloud-init
+  ansible.builtin.import_role:
+    name: image_prep
+
