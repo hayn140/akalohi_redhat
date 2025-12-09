@@ -1,8 +1,8 @@
 ---
 # tasks file for universal_prep
-- name: Remove unnecessary keys from authorized keys
-  ansible.builtin.shell: |
-    rm -f /etc/ssh/ssh_host*
+# - name: Remove unnecessary keys from authorized keys
+#   ansible.builtin.shell: |
+#     rm -f /etc/ssh/ssh_host*
 
 - name: Remove persistent network stuff
   ansible.builtin.shell: |
