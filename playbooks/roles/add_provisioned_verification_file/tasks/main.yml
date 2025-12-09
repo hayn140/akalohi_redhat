@@ -9,3 +9,51 @@
     mode: '0644'
     owner: root
     group: root
+
+- name: Create cloud-user if the user doesn't exist & set Temporary Password
+  ansible.builtin.user:
+    name: cloud-user
+    shell: /bin/bash
+    groups:
+      - adm
+      - wheel
+      - systemd-journal
+    append: true
+    comment: "cloud-user"
+    expires: -1
+    password: "{{ 'Changeplease$1235' | password_hash('sha512') }}"
+    state: present
+
+- name: Ensure PasswordAuthentication is set to yes
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PasswordAuthentication'
+    line: 'PasswordAuthentication yes'
+    state: present
+    backrefs: yes
+
+- name: Ensure ChallengeResponseAuthentication is disabled (optional but common)
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?ChallengeResponseAuthentication'
+    line: 'ChallengeResponseAuthentication no'
+    state: present
+    backrefs: yes
+
+- name: Restart SSH service
+  service:
+    name: sshd
+    state: restarted
+
+- name: Ensure cloud-init is installed
+  ansible.builtin.package:
+    name: cloud-init
+    state: installed
+    
+- name: Deploy LOS RHEL cloud.cfg
+  ansible.builtin.template:
+    src: LOS_rhel_cloud.cfg.j2
+    dest: /etc/cloud/cloud.cfg
+    owner: root
+    group: root
+    mode: 0644
