@@ -52,10 +52,10 @@
 
 ### Configure cloud-init with default user cloud-user ###
 
-- name: Ensure cloud-init is installed
-  ansible.builtin.package:
-    name: cloud-init
-    state: installed
+      #- name: Ensure cloud-init is installed
+      #ansible.builtin.package:
+      #name: cloud-init
+      #state: installed
     
 - name: Deploy cloud.cfg template for cloud-init
   ansible.builtin.template:

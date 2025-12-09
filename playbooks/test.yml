@@ -1,0 +1,8 @@
+---
+
+- name: Test provisioning role
+  hosts: all
+  become: true
+  become_method: sudo
+  roles:
+    - add_provisioned_verification_file
