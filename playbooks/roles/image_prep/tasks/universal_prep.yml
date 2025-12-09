@@ -37,26 +37,29 @@
   ansible.builtin.shell: |
     su -c "history -c && history -w" - cloud-user
 
-- name: Unregister from Satellite
-  ansible.builtin.shell:
-    cmd: subscription-manager unregister
+# - name: Unregister from Satellite
+#   ansible.builtin.shell:
+#     cmd: subscription-manager unregister
+#   ignore_errors: true
 
-- name: Remove subscriptions
-  ansible.builtin.shell:
-    cmd: subscription-manager remove --all
+# - name: Remove subscriptions
+#   ansible.builtin.shell:
+#     cmd: subscription-manager remove --all
+#   ignore_errors: true
+  
+# - name: Dump subscriptions
+#   ansible.builtin.shell:
+#     cmd: subscription-manager clean
+#   ignore_errors: true
+  
+# - name: Remove katello noise
+#   ansible.builtin.shell:
+#     cmd: dnf remove -y katello-ca-consumer\*
 
-- name: Dump subscriptions
-  ansible.builtin.shell:
-    cmd: subscription-manager clean
-
-- name: Remove katello noise
-  ansible.builtin.shell:
-    cmd: dnf remove -y katello-ca-consumer\*
-
-- name: Remove other katello noise
-  ansible.builtin.file:
-    path: /etc/rhsm/facts/katello.facts
-    state: absent
+# - name: Remove other katello noise
+#   ansible.builtin.file:
+#     path: /etc/rhsm/facts/katello.facts
+#     state: absent
 
 - name: Clean yum
   ansible.builtin.shell:
