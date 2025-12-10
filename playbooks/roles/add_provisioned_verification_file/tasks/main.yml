@@ -1,16 +1,5 @@
 ---
 
-### Add proof of provision file ###
-- name: Add Provisioning File to /tmp/
-  ansible.builtin.copy:
-    dest: /tmp/provisioned_by_image_factory.txt
-    content: |
-      This file was created using the
-      automated image_factory.
-    mode: '0644'
-    owner: root
-    group: root
-
 ### Create cloud-user ###
 
 - name: Create cloud-user if the user doesn't exist & set Temporary Password
@@ -73,3 +62,13 @@
   ansible.builtin.import_role:
     name: image_prep
 
+### Add proof of provision file ###
+- name: Add Provisioning File to /tmp/
+  ansible.builtin.copy:
+    dest: /tmp/provisioned_by_image_factory.txt
+    content: |
+      This file was created using the
+      automated image_factory.
+    mode: '0644'
+    owner: root
+    group: root
