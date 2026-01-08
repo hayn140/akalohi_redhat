@@ -1,5 +1,5 @@
 # This lambda function sends AAP the following ansible variables
-#   - s3_key : Key of the uploaded file (Triggered by a .vmdk uploaded in 'rh-images' S3 Bucket at Imports/)
+#   - s3_key : Key of the uploaded file (Triggered by a .vmdk uploaded in 'networkB-images' S3 Bucket at Imports/)
 #   - s3_bucket : AWS Bucket name
 #   - aws_region: AWS Region
 #   - aws_access_key : credentials
@@ -21,8 +21,7 @@ def get_secret():
     session = boto3.session.Session()
     client = session.client(
         service_name='secretsmanager',
-        region_name=region_name,
-        verify='cert.pem'  # This cert.pem is used for AWS CA Bundle
+        region_name=region_name
     )
 
     try:
@@ -86,7 +85,7 @@ def lambda_handler(event, context):
         }
     }
 
-    response = requests.post(aap_url, headers=headers, data=json.dumps(payload), verify='atp_bundle.pem')  # This atp_bundle.pem is used for NSA CA Bundle (All Trusted Partners)
+    response = requests.post(aap_url, headers=headers, data=json.dumps(payload))
 
     if response.status_code in [200, 201, 202]:
         print("✅ AAP job triggered successfully!")

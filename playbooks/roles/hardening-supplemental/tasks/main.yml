@@ -28,39 +28,6 @@
   loop:
     - /var/log/cron
 
-#- name: Ensure proper permissions on host keys
-#  ansible.builtin.file:
-#    path: "{{ item }}"
-#    mode: "0400"
-#    owner: root
-#  loop:
-#    - /etc/ssh/ssh_host_ecdsa_key
-#    - /etc/ssh/ssh_host_ed25519_key
-#    - /etc/ssh/ssh_host_rsa_key
-
-# File does not exist
-# - name: Configure AIDE,verify ACL
-#   ansible.builtin.lineinfile:
-#     path: /etc/aide.conf
-#     state: present
-#     regexp: '^ALL = sha512+acl+xattr'
-#     line: 'ALL = sha512+acl+xattrs'
-
-# - name: Initialize Aide
-#   ansible.builtin.command: >
-#     aide --init
-
-# - name: Rename aide.db.gz
-#   ansible.builtin.command: >
-#     mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
-#   ignore_errors: true
-
-# - name: Add potential crontab entry
-#   ansible.builtin.copy:
-#     dest: /etc/crontab
-#     content: '#0 1 * * 0 /sbin/aide --check'
-#     mode: "0640"
-
 # RHEL-08-040020
 - name: Disable webcam
   ansible.builtin.copy:
@@ -69,10 +36,6 @@
     owner: root
     group: root
     mode: "0644"
-
-# - name: Load auditing rules
-#   ansible.builtin.command: >
-#     augenrules --load
 
 - name: net.ipv4.conf.default.rp_filter set to 1
   ansible.builtin.lineinfile:
@@ -121,20 +84,10 @@
     regexp: '^AllowZoneDrifting='
     line: 'AllowZoneDrifting=no'
 
-# - name: Set drop as the default target
-#   command: >
-#     firewall-cmd --set-default-zone=drop
-
 - name: Reload firewalld
   ansible.builtin.service:
     name: firewalld
     state: reloaded
-
-# - name: Disable firewalld
-#   ansible.builtin.service:
-#     name: firewalld
-#     state: stopped
-#     enabled: false
 
 - name: Stop and disable rpcbind.socket
   ansible.builtin.service:

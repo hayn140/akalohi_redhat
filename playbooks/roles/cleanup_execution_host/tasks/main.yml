@@ -14,7 +14,7 @@
 #     to: "{{ notify_users }}"
 #     subject: "The New Provisioned {{ provisioned_image_name }} Image is Now Available."
 #     body: |
-#       The following provisioned Image is now available in C2E:
+#       The following provisioned Image is now available in the '{{ s3_bucket_name }}' S3 Bucket:
 
 #       AMI ID: {{ provisioned_ami_id }}
 #       AMI NAME: {{ provisioned_image_name }}

@@ -1,7 +1,7 @@
 ---
 # tasks file for cleanup_ami_snapshots
 
-- name: Deregister Pre-Packerized AMI & Delete associated Snapshot
+- name: Deregister Pre-Provisioned AMI & Delete associated Snapshot
   amazon.aws.ec2_ami:
     image_id: "{{ imported_ami_id }}"
     delete_snapshot: true

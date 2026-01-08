@@ -7,7 +7,3 @@ Dependencies
 ------------
 Nope
 
-Author Information
-------------------
-- Jcrodri
-- Agmill3 is an elder millennial
