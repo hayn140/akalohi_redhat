@@ -1,17 +1,17 @@
 ---
 # tasks file for clout_init_universal
 
-- name: Deploy LOS RHEL cloud.cfg
+- name: Deploy RHEL cloud.cfg
   ansible.builtin.template:
-    src: LOS_rhel_cloud.cfg.j2
+    src: rhel_cloud.cfg.j2
     dest: /etc/cloud/cloud.cfg
     owner: root
     group: root
     mode: 0644
 
-- name: Deploy LOS /root/sat-register.sh Satellite Registration Script
+- name: Deploy /root/sat-register.sh Satellite Registration Script
   ansible.builtin.template:
-    src: LOS_sat_register.sh.j2
+    src: sat_register.sh.j2
     dest: /root/sat-register.sh
     owner: root
     group: root

@@ -15,9 +15,3 @@ Dependencies
 ------------
 
 Server already connected to repos  
-
-
-Author Information
-------------------
-
-Agmill3 is an elder millennial

@@ -1,4 +1,0 @@
-[org/gnome/settings-daemon/plugins/media-keys]
-
-# RHEL-08-040171: Disable ctrl-alt-del.target in GUI
-logout=''

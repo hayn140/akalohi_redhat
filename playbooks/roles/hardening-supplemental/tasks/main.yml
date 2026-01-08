@@ -1,7 +1,6 @@
 ---
 # tasks file for hardening-supplemental
 
-# These tasks are likely to be superceded by y4-devx work o problematic tasks have been disabled
 - name: Remove packages for security compliance
   ansible.builtin.dnf:
     name: "{{ packages_remove }}"

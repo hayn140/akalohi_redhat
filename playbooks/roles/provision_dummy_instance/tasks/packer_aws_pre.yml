@@ -1,11 +1,6 @@
 ---
 
-# - name: Configure NSA CA bundle certificates
-#   ansible.builtin.import_role:
-#     name: configure_nsa_ca_bundle
-#   tags: nsa_ca_bundle
-
-# - name: Register server to sat ###Add correct satellite link command to defaults file in sat_register role
+# - name: Register server to sat # Add correct satellite link command to defaults file in sat_register role
 #   ansible.builtin.import_role:
 #     name: sat_register
 #   tags: register

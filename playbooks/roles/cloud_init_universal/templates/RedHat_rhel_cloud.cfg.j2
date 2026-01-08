@@ -15,8 +15,6 @@ disable_vmware_customization: false
 # datasource: [ OVF, VMware, none ]
 
 #jq package must be installed prior to running the init.d shell scripts
-#rhcaps.machineshop.nsa.ic.gov is the GTM that should be handling load balancing also registering based on location of the systems
-#ste-atp contains the all trusted partners certs and must be installed before mcafee, sear, and UAM
 
 write_files:
 - path: /tmp/setup.sh
@@ -29,15 +27,7 @@ write_files:
     chage -d {{ ansible_date_time.date }} root
     chage -d {{ ansible_date_time.date }} cloud-user
     {{ aws_bootstrap }}
-    # Temp logic to disable legacy ste-stn repos in FASHIONFILM activation key
-    subscription-manager repos --disable=Default_Organization_STE_metrics*
-    subscription-manager repos --disable=Default_Organization_STE_bigfix*
     dnf update -y
-    mcafee reset
-    nessus-tool reset
-    nessus-tool auto
-    mcafee auto
-    sear auto
     
 runcmd:
   - [ bash, /tmp/setup.sh ]

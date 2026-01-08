@@ -20,23 +20,6 @@
     exported_image_id: "{{ ova_export_filename.stdout }}"
     ova_full_pathname: "Exports/ova/{{ ova_export_filename.stdout }}.ova"
 
-# - name: Export EC2 Instance to OVA (Custom Ansible Module Path)
-#   ec2_export_ova:
-#     region: "{{ aws_region }}"
-#     instance_id: "{{ dummy_ec2_instance_id }}"
-#     target_environment: vmware
-#     container_format: ova
-#     disk_image_format: vmdk
-#     s3_bucket: "{{ s3_bucket_name }}" 
-#     s3_prefix: "Exports/ova/"
-#   become: false
-#   register: ova_export_filename
-
-# - name: Set 'exported_image_id' and 'ova_full_pathname' variables (Custom Ansible Module Path)
-#   ansible.builtin.set_fact:
-#     exported_image_id: "{{ ova_export_filename.export_task_id  }}"
-#     ova_full_pathname: "Exports/ova/{{ ova_export_filename.export_task_id  }}.ova"
-
 - name: Display exported OVA image filename
   ansible.builtin.debug:
     msg: "OVA Filename: {{ exported_image_id }}.ova"

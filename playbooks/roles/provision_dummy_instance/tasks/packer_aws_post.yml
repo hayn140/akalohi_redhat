@@ -1,10 +1,5 @@
 ---
 
-# - name: Install ste clients
-#   ansible.builtin.import_role:
-#     name: ste_clients
-#   tags: ste_init
-
 - name: Inject cloud init based on var
   ansible.builtin.import_role:
     name: cloud_init_universal
@@ -34,11 +29,6 @@
   ansible.builtin.import_role:
     name: hardening-supplemental
   tags: hardening-supplemental
-
-#    - name: Copy out los docs
-#      ansible.builtin.import_role:
-#        name: los_docs
-#      tags: los
 
 - name: Enable STIG SSH Timeout 
   ansible.builtin.import_role:

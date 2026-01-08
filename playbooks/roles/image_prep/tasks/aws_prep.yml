@@ -9,6 +9,6 @@
   ansible.builtin.shell: |
     rm -f /var/log/kickstart/build.log; rm -f /var/log/kickstart/puppet.log
 
-# - name: Shred creds
+# - name: Shred creds (uncomment this task for real image production, this was commented out for Red Hat One demo purposes)
 #   ansible.builtin.shell: |
 #     shred -u /home/cloud-user/.aws/credentials; shred -u /home/cloud-user/.ssh/*.pem; shred -u /home/cloud-user/.ssh/*.crt; shred -u /home/cloud-user/.ssh/authorized_keys; shred -u /home/cloud-user/.*history; shred -u /root/.aws/credentials; shred -u /root/.ssh/*.pem; shred -u /root/.ssh/*.crt; shred -u /root/.ssh/authorized_keys; shred -u /root/.*history; history -c; history -w; history -c; history -w

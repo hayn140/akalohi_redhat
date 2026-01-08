@@ -1,9 +1,12 @@
 ---
 
 # Collections needed for this playbook
+#  - ansible.builtin
+#  - ansible.posix
 #  - amazon.aws
+#  - community.general
 
-- name: Setup Execution Host & Import Images
+- name: Import Images
   hosts: worker_node
   remote_user: rh-ansible
   tags: import_base_image
@@ -14,16 +17,13 @@
     AWS_DEFAULT_REGION: "{{ aws_region }}"
   
   tasks:
-    # - name: Setup Execution Host
-    #   ansible.builtin.import_role:
-    #     name: setup_execution_host
 
-  - name: OVA Image Detected, Beginning OVA Import (WANDS Import Method)
+  - name: OVA Image Detected, Beginning OVA Import
     ansible.builtin.import_role:
       name: import_base_ova
     when: image_type == 'ova'
       
-  - name: VMDK Image Detected, Beginning VMDK Import (C2E Import Method)
+  - name: VMDK Image Detected, Beginning VMDK Import
     ansible.builtin.import_role:
       name: import_base_vmdk
     when: image_type == 'vmdk'
@@ -52,8 +52,8 @@
     AWS_DEFAULT_REGION: "{{ aws_region }}"
 
   roles:
-    - add_provisioned_verification_file
-    #- provision_dummy_instance
+    - add_provisioned_verification_file # (This role is for demo purposes at Red Hat One)
+    #- provision_dummy_instance # (This is the real role for provisioning instances)
 
 - name: Export Provisioned EC2 Instance to OVA, VMDK, QCOW2, VHD, & AMI Format, then Cleanup
   hosts: worker_node

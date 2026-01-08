@@ -1,4 +1,4 @@
 ---
 # defaults file for clout_init_universal
 
-aws_bootstrap: "set -o pipefail && curl -sS  'https://nctx-c2s-rhsat1.nctx.nsa.ic.gov/register?activation_keys=C2S&force=true&ignore_subman_errors=true&location_id=8&organization_id=1&setup_insights=false&setup_remote_execution=false&update_packages=false' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxMiwiaWF0IjoxNzQxMTg5ODE0LCJqdGkiOiI0NjkwMDQ2ZjAxYzZjZGJjNTczMTc3ZTdlMDU2MjJmZjZlY2I1MjE5NTI1MzViMzE5ZmFlOTk3NmY2NGQ2MjBhIiwic2NvcGUiOiJyZWdpc3RyYXRpb24jZ2xvYmFsIHJlZ2lzdHJhdGlvbiNob3N0In0.SlC5fm1MSWN0lE2qODpInMJyXm2CUKiaLKbkYg6O3wY' | bash"
+aws_bootstrap: "set -o pipefail && curl -sS ..."

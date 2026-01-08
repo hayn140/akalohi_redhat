@@ -1,6 +1,6 @@
 ---
 # tasks file for dnf_update
-# This is a dumb way to unset the version lock. But the commented out module fails and I am tired. 
+
 - name: Unset release version
   ansible.builtin.command:
     subscription-manager release --unset
@@ -43,7 +43,7 @@
     name: dnf-utils
     state: present
 
-# - name: Update everything because I have a problem
+# - name: Update everything
 #   ansible.builtin.dnf:
 #     name: "*"
 #     state: latest

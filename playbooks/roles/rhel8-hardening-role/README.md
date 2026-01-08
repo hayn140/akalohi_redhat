@@ -7,18 +7,6 @@ A handful of the tasks are simply for logging or informational purposes (i.e., r
 
 **REVIEW THE LOG FILE WHEN THE ROLE COMPLETES STIGS THAT REQUIRE MANUAL ACTION!**
 
-Authors
--------
-
-MSgt Jeremiah DeVries (jpdevri) (Project Lead) with contributions from the following members:
-  - William "Bill" Moulton (wrmoult)
-  - William Freeman (wxfreem)
-  - Christopher Molero (camoler)
-  - TSgt Randall Summers (rasumm2)
-  - SSgt Nicholas Krajnyak (nakrajn)
-  - Alex Alas (aealase)
-  - Rusty Braden (jrbrade)
-
 Requirements
 ------------
 
